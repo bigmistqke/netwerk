@@ -54,7 +54,7 @@ class Node<
     return new Node(this.func, this.props())
   }
   toIntermediary(
-    functions: Map<(...args: any[]) => any, string>,
+    functions: Map<(...args: any[]) => any, FunctionCache>,
     nodes: Map<Node, NodeCache>,
     parameters: Map<Accessor<any>, string>,
   ) {
@@ -100,8 +100,8 @@ class Node<
       props[key] = prop
     }
 
-    if (!functions.get(this.func)) {
-      functions.set(this.func, `fn__${uuid.function++}`)
+    if (!functions.has(this.func)) {
+      functions.set(this.func, { id: `fn__${uuid.function++}`, used: false })
     }
 
     return {
@@ -136,15 +136,19 @@ class Parameter<T> {
 
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
-  functions: Map<(...args: any[]) => any, string>,
+  functions: Map<(...args: any[]) => any, FunctionCache>,
   nodes: Map<Node, NodeCache>,
   parameters: Map<Accessor<any>, string>,
 ) => {
   const node = nodes.get(intermediary.node)
 
+  if (functions.has(intermediary.func)) {
+    functions.get(intermediary.func)!.used = true
+  }
+
   let string = ''
   string += `(`
-  string += functions.get(intermediary.func) || intermediary.func.toString()
+  string += functions.get(intermediary.func)?.id || intermediary.func.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
@@ -172,6 +176,11 @@ const intermediaryToCode = (
   string += '})'
 
   return string
+}
+
+type FunctionCache = {
+  id: string
+  used: boolean
 }
 
 type NodeCache = {
@@ -220,15 +229,16 @@ class Network<TProps extends Record<string, any>> {
   }
   toCode() {
     /* !CAUTION! we mutate nodes and paremeters inside toIntermediary !CAUTION! */
-    const functions = new Map<(...args: any[]) => any, string>()
+    const functions = new Map<(...args: any[]) => any, FunctionCache>()
     const nodes = new Map<Node, NodeCache>()
     const parameters = new Map<Accessor<any>, string>()
     const intermediary = this.selectedNode()?.toIntermediary(functions, nodes, parameters)!
+
     const code = intermediaryToCode(intermediary, functions, nodes, parameters)
 
-    const functionsToCode = Array.from(functions.entries()).map(
-      ([func, functionId]) => `const ${functionId} = ${func.toString()};`,
-    )
+    const functionsToCode = Array.from(functions.entries())
+      .filter(([, { used }]) => used)
+      .map(([func, data]) => `const ${data.id} = ${func.toString()};`)
 
     const usedNodesToCode = Array.from(nodes.values())
       .filter(node => node.used)
