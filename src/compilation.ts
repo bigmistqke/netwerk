@@ -1,5 +1,5 @@
 import { createLazyMemo } from '@solid-primitives/memo'
-import { createSignal, type Accessor, type Setter } from 'solid-js'
+import { createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
 
 import { Edge, Nodes } from './types'
 import { mergeGetters } from './utils/mergeGetters'
@@ -68,7 +68,6 @@ class Node<
           props[key] = compilation
           continue
         }
-        console.log(`${prop.func.toString()}`, prop.props)
 
         props[key] = eval(`${prop.func.toString()}`)(prop.props())
         continue
@@ -178,7 +177,7 @@ class Network<TProps extends Record<string, any>> {
   exec(): any {
     return this.selectedNode?.()?.exec()
   }
-  compile() {
+  stringify() {
     const funcs = new Set<(args: any[]) => any>()
     const parameters = new Map<Accessor<any>, string>()
     const intermediary = this.selectedNode()?.toIntermediary(funcs, parameters)!
@@ -215,4 +214,22 @@ export const createIntermediaryFromGraph = (graph: {
   }
   network.selectNode(nodes[graph.selectedNodeId])
   return network
+}
+
+export const compileGraph = (graph: {
+  nodes: Nodes
+  edges: Edge[]
+  selectedNodeId: keyof Nodes
+}) => {
+  const stringifiedFunc = () => createIntermediaryFromGraph(graph).stringify()
+  return createMemo(prev => {
+    try {
+      console.log('stringied func: ', stringifiedFunc())
+      const result = eval(stringifiedFunc())
+      return result
+    } catch (err) {
+      console.error(err)
+      return prev
+    }
+  })
 }

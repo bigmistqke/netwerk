@@ -1,6 +1,7 @@
-import { Component, createEffect, createMemo, createSignal } from 'solid-js'
+import { Component, createEffect, createSignal } from 'solid-js'
+
 import Network from './Network/index'
-import { createIntermediaryFromGraph } from './createIntermediaryFromGraph'
+import { compileGraph } from './compilation'
 import type { Nodes } from './types'
 import { randomFromObject } from './utils/randomFromObject'
 
@@ -151,15 +152,8 @@ const App: Component = () => {
     },
   ]
 
-  const intermediary = createMemo(() =>
-    createIntermediaryFromGraph({ nodes, edges, selectedNodeId: 'multiply' }),
-  )
-
-  const compiledCode = createMemo(() => eval(intermediary().compile()))
-
-  createEffect(() => {
-    console.log(compiledCode(), compiledCode()(value()))
-  })
+  const compiledGraph = compileGraph({ nodes, edges, selectedNodeId: 'multiply' })
+  createEffect(() => console.log(compiledGraph()(value())))
 
   return (
     <div>
