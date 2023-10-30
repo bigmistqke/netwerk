@@ -27,12 +27,12 @@ const resolveProps = <T>(_props: T) => {
 
 let id = 0
 class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
-  func: T
+  atom: T
   props: Accessor<PropsAccessor<TProps>>
   id = ++id
   setProps: (props: Partial<PropsAccessor<TProps>>) => void
-  constructor(func: T, props: PropsAccessor<TProps>) {
-    this.func = func
+  constructor(atom: T, props: PropsAccessor<TProps>) {
+    this.atom = atom
     const [_props, setProps] = createSignal<PropsAccessor<TProps>>(props)
     this.props = _props
     this.setProps = props => setProps(p => ({ ...p, ...props }))
@@ -40,17 +40,13 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   private resolveProps() {
     return resolveProps(this.props)
   }
-  setFunc(func: T) {
-    this.func = func
+  setAtom(atom: T) {
+    this.atom = atom
   }
   createInstance() {
-    return new Node(this.func, this.props())
+    return new Node(this.atom, this.props())
   }
-  toIntermediary(cache: {
-    function: Map<Func, FunctionCache>
-    node: Map<Node, NodeCache>
-    parameter: Map<Accessor<any>, string>
-  }) {
+  toIntermediary(cache: CompilationCache) {
     const props = { ...this.props() }
     let pure = true
     let self = this as Node
@@ -96,7 +92,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
-          props[key] = eval(`${(prop as Node).func.toString()}`)(compilation.props)
+          props[key] = eval(`${(prop as Node).atom.toString()}`)(compilation.props)
           continue
         }
 
@@ -111,19 +107,19 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       props[key] = prop
     }
 
-    if (!cache.function.has(this.func)) {
-      cache.function.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
+    if (!cache.atom.has(this.atom)) {
+      cache.atom.set(this.atom, { id: `__fn__${uuid.atom++}`, used: false })
     }
 
     return {
       pure,
-      func: this.func,
+      atom: this.atom,
       props,
       node: self,
     }
   }
   exec = createLazyMemo(() => {
-    return this.func instanceof Network ? this.func.exec() : this.func(this.resolveProps())
+    return this.atom instanceof Network ? this.atom.exec() : this.atom(this.resolveProps())
   })
 }
 
@@ -149,13 +145,13 @@ const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
 ) => {
-  if (cache.function.has(intermediary.func)) {
-    cache.function.get(intermediary.func)!.used = true
+  if (cache.atom.has(intermediary.atom)) {
+    cache.atom.get(intermediary.atom)!.used = true
   }
 
   let string = ''
   string += `(`
-  string += cache.function.get(intermediary.func)?.id || intermediary.func.toString()
+  string += cache.atom.get(intermediary.atom)?.id || intermediary.atom.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
@@ -189,7 +185,7 @@ const intermediaryToCode = (
 }
 
 type CompilationCache = {
-  function: Map<Func, FunctionCache>
+  atom: Map<Func, FunctionCache>
   node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
   parameter: Map<() => any, string>
 }
@@ -218,8 +214,8 @@ class Network {
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
     T extends (props: TProps) => any,
-  >(func: T, props: PropsAccessor) {
-    const node = new Node(func, props)
+  >(atom: T, props: PropsAccessor) {
+    const node = new Node(atom, props)
     this.nodes.push(node)
     return node
   }
@@ -229,7 +225,7 @@ class Network {
   toCode() {
     /* !CAUTION! we mutate cache inside toIntermediary !CAUTION! */
     const cache: CompilationCache = {
-      function: new Map(),
+      atom: new Map(),
       node: new Map(),
       parameter: new Map(),
     }
@@ -238,9 +234,9 @@ class Network {
 
     const code = intermediaryToCode(intermediary, cache)
 
-    const functionsToCode = Array.from(cache.function.entries())
+    const atomsToCode = Array.from(cache.atom.entries())
       .filter(([, { used }]) => used)
-      .map(([func, data]) => `const ${data.id} = ${func.toString()};`)
+      .map(([atom, data]) => `const ${data.id} = ${atom.toString()};`)
 
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
@@ -248,7 +244,7 @@ class Network {
 
     return `
 (${Array.from(cache.parameter.values()).join(', ')}) => {
-  ${[...functionsToCode, ...usedNodesToCode].join('\n  ')}\n
+  ${[...atomsToCode, ...usedNodesToCode].join('\n  ')}\n
   return ${code}
 }`
   }
@@ -256,7 +252,7 @@ class Network {
 
 let uuid = {
   parameter: 0,
-  function: 0,
+  atom: 0,
   node: 0,
 }
 export const createIntermediaryFromGraph = (graph: {
@@ -265,7 +261,7 @@ export const createIntermediaryFromGraph = (graph: {
   selectedNodeId: keyof Nodes
 }) => {
   uuid = {
-    function: 0,
+    atom: 0,
     node: 0,
     parameter: 0,
   }
@@ -275,7 +271,7 @@ export const createIntermediaryFromGraph = (graph: {
       return [
         nodeId,
         network.createNode(
-          node.func,
+          node.atom,
           Object.fromEntries(
             Object.entries(node.parameters).map(([id, parameter]) => {
               return [id, parameter.value]

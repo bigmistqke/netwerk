@@ -3,7 +3,7 @@ import { Component, createEffect, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import Network from './Network/index'
 import { compileGraph } from './compilation'
-import type { Nodes } from './types'
+import type { Func, Nodes } from './types'
 import { randomFromObject } from './utils/randomFromObject'
 
 const createNodes = (amount = 100) => {
@@ -39,9 +39,34 @@ const createEdges = (nodes: Nodes, amount = 50) => {
   })
 }
 
+const createSum = (ctx: Record<string, Record<string, Func>>, parameters = {}) => ({
+  atom: ctx.std.add,
+  output: 'number',
+  parameters: {
+    a: {
+      type: 'number',
+      value: 0,
+    },
+    b: {
+      type: 'number',
+      value: 0,
+    },
+    ...parameters,
+  },
+})
+
 const App: Component = () => {
   const [value, setValue] = createSignal(2)
   const [value2, setValue2] = createSignal(2)
+
+  const std = {
+    add: args => args.a + args.b,
+    multiply: args => args.a * args.b,
+  }
+
+  const context = {
+    std,
+  }
 
   setTimeout(() => {
     setValue(100)
@@ -51,24 +76,8 @@ const App: Component = () => {
   const sum = eval('(args)=>args.a+args.b')
   const multiplyString = '(args)=>args.a*args.b'
 
-  const createSum = (parameters: Record<string, any>) => ({
-    func: sum,
-    output: 'number',
-    parameters: {
-      a: {
-        type: 'number',
-        value: 0,
-      },
-      b: {
-        type: 'number',
-        value: 0,
-      },
-      ...parameters,
-    },
-  })
-
   const multiply = {
-    func: eval(multiplyString),
+    atom: eval(multiplyString),
     output: 'multiply',
     parameters: {
       a: {
@@ -84,7 +93,7 @@ const App: Component = () => {
 
   const [nodes, setNodes] = createStore<Nodes>({
     sum: {
-      ...createSum({
+      ...createSum(context, {
         a: {
           type: 'number',
           value: value2,
@@ -100,7 +109,7 @@ const App: Component = () => {
       },
     },
     sum2: {
-      ...createSum({
+      ...createSum(context, {
         a: {
           type: 'number',
           value,
@@ -116,7 +125,7 @@ const App: Component = () => {
       },
     },
     sum3: {
-      ...createSum({
+      ...createSum(context, {
         a: {
           type: 'number',
           value: 0,
@@ -132,7 +141,7 @@ const App: Component = () => {
       },
     },
     sum4: {
-      ...createSum({
+      ...createSum(context, {
         a: {
           type: 'number',
           value: 3,

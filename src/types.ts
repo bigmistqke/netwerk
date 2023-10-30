@@ -8,8 +8,10 @@ export type Nodes = Record<
   string,
   {
     position: Vector
-    func: (parameters: Record<string, any>) => any
+    atom: (parameters: Record<string, any>) => any
     parameters: Record<string, Parameter>
     output: any
   }
 >
+
+export type Func = (...args: any[]) => any
