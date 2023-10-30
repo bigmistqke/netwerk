@@ -1,5 +1,6 @@
 import { Component, createEffect, createSignal } from 'solid-js'
 
+import { createStore } from 'solid-js/store'
 import Network from './Network/index'
 import { compileGraph } from './compilation'
 import type { Nodes } from './types'
@@ -79,7 +80,7 @@ const App: Component = () => {
     },
   }
 
-  const nodes: Nodes = {
+  const [nodes, setNodes] = createStore<Nodes>({
     sum: {
       ...createSum({
         a: {
@@ -135,9 +136,9 @@ const App: Component = () => {
         y: 300,
       },
     },
-  }
+  })
 
-  const edges = [
+  const [edges, setEdges] = createStore([
     {
       start: { nodeId: 'sum', handleId: 'output' },
       end: { nodeId: 'multiply', handleId: 'a' },
@@ -150,7 +151,7 @@ const App: Component = () => {
       start: { nodeId: 'sum3', handleId: 'output' },
       end: { nodeId: 'sum2', handleId: 'a' },
     },
-  ]
+  ])
 
   const compiledGraph = compileGraph({ nodes, edges, selectedNodeId: 'multiply' })
   createEffect(() => console.log(compiledGraph()(value())))

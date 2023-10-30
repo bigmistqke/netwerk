@@ -12,6 +12,23 @@ const math = {
   add: ({ a, b }: { a: number; b: number }) => a + b,
 }
 
+const resolveProps = <T>(_props: T) => {
+  const props = {} as T
+  for (const key in _props) {
+    const prop = _props[key]
+    if (typeof prop === 'function') {
+      props[key] = prop()
+      continue
+    }
+    if (typeof prop === 'object' && 'exec' in prop) {
+      props[key] = prop.exec()
+      continue
+    }
+    props[key] = prop
+  }
+  return props
+}
+
 let id = 0
 class Node<
   TProps extends Record<string, Exclude<any, Function>> = Record<string, Exclude<any, Function>>,
@@ -28,20 +45,7 @@ class Node<
     this.setProps = props => setProps(p => ({ ...p, ...props }))
   }
   private resolveProps() {
-    const props = {} as TProps
-    for (const key in this.props()) {
-      const prop = this.props()[key]
-      if (typeof prop === 'function') {
-        props[key] = prop()
-        continue
-      }
-      if (typeof prop === 'object' && 'exec' in prop) {
-        props[key] = prop.exec()
-        continue
-      }
-      props[key] = prop
-    }
-    return props
+    return resolveProps(this.props)
   }
   setFunc(func: T) {
     this.func = func
@@ -55,21 +59,24 @@ class Node<
     for (const key in props) {
       const prop = this.props()[key]
       if (typeof prop === 'function') {
+        /* a function as entry-point will mark a path as impure */
+        funcs.add(prop)
+
         pure = false
         props[key] = prop
         continue
       }
       if (typeof prop === 'object' && 'exec' in prop) {
         funcs.add(prop.func)
-        pure = false
 
         const compilation = prop.toIntermediary(funcs, parameters)
         if (!compilation.pure) {
+          pure = false
           props[key] = compilation
           continue
         }
 
-        props[key] = eval(`${prop.func.toString()}`)(prop.props())
+        props[key] = eval(`${prop.func.toString()}`)(compilation.props)
         continue
       }
 
@@ -105,7 +112,7 @@ class Parameter<T> {
 }
 
 let uuid = 0
-const stringifyIntermediary = (
+const intermediaryToCode = (
   intermediary: {
     func: (props: Record<string, any>) => any
     props: Record<string, any>
@@ -121,7 +128,7 @@ const stringifyIntermediary = (
     string += ': '
 
     if (typeof prop === 'object') {
-      const resolvedProps = stringifyIntermediary(prop, parameters)
+      const resolvedProps = intermediaryToCode(prop, parameters)
       string += resolvedProps
     } else if (typeof prop === 'function') {
       let id = parameters.get(prop)
@@ -177,12 +184,12 @@ class Network<TProps extends Record<string, any>> {
   exec(): any {
     return this.selectedNode?.()?.exec()
   }
-  stringify() {
+  toCode() {
     const funcs = new Set<(args: any[]) => any>()
     const parameters = new Map<Accessor<any>, string>()
     const intermediary = this.selectedNode()?.toIntermediary(funcs, parameters)!
-    const stringifiedIntermediary = stringifyIntermediary(intermediary, parameters)
-    return `(${Array.from(parameters.values()).join(', ')}) => (${stringifiedIntermediary})`
+    const code = intermediaryToCode(intermediary, parameters)
+    return `(${Array.from(parameters.values()).join(', ')}) => (${code})`
   }
 }
 
@@ -221,11 +228,11 @@ export const compileGraph = (graph: {
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
-  const stringifiedFunc = () => createIntermediaryFromGraph(graph).stringify()
+  const code = () => createIntermediaryFromGraph(graph).toCode()
   return createMemo(prev => {
     try {
-      console.log('stringied func: ', stringifiedFunc())
-      const result = eval(stringifiedFunc())
+      console.log('code: ', code())
+      const result = eval(code())
       return result
     } catch (err) {
       console.error(err)
