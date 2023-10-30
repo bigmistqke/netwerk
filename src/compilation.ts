@@ -2,15 +2,11 @@ import { createLazyMemo } from '@solid-primitives/memo'
 import { createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
 
 import { Edge, Nodes } from './types'
-import { mergeGetters } from './utils/mergeGetters'
 
-type PropsAccessor<T> = {
-  [TKey in keyof T]: T[TKey] | { exec: Accessor<T[TKey]> } | Accessor<T[TKey]>
+type PropsAccessor<T = any> = {
+  [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
 }
-
-const math = {
-  add: ({ a, b }: { a: number; b: number }) => a + b,
-}
+type Func = (...args: any[]) => any
 
 const resolveProps = <T>(_props: T) => {
   const props = {} as T
@@ -30,10 +26,7 @@ const resolveProps = <T>(_props: T) => {
 }
 
 let id = 0
-class Node<
-  TProps extends Record<string, Exclude<any, Function>> = Record<string, Exclude<any, Function>>,
-  T extends (props: TProps) => any = (props: TProps) => any,
-> {
+class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
   func: T
   props: Accessor<PropsAccessor<TProps>>
   id = ++id
@@ -54,32 +47,43 @@ class Node<
     return new Node(this.func, this.props())
   }
   toIntermediary(
-    functions: Map<(...args: any[]) => any, FunctionCache>,
-    nodes: Map<Node, NodeCache>,
-    parameters: Map<Accessor<any>, string>,
+    functionMap: Map<Func, FunctionCache>,
+    nodeMap: Map<Node, NodeCache>,
+    parameterMap: Map<Accessor<any>, string>,
   ) {
     const props = { ...this.props() }
     let pure = true
     let self = this as Node
     for (const key in props) {
-      let prop = this.props()[key]
+      let prop = this.props()[key]!
+
       if (typeof prop === 'function') {
         /* a function as entry-point will mark a path as impure */
         pure = false
         props[key] = prop
         continue
       }
+
+      /* this prop is a Node */
       if (typeof prop === 'object' && 'exec' in prop) {
-        prop = prop as Node
-        if (nodes.has(self as Node)) {
-          const node = nodes.get(self as Node)!
-          node.visited = true
+        const _node = nodeMap.get(self as Node)
+        if (_node) {
+          /* 
+            The parent-node was already initialized in nodeMap:
+            This means that we visited the same node at least two times.
+            We mark the node in the nodeMap as visited.
+            This will initialize node-memoization during code-generation.
+          */
+          _node.visited = true
         }
 
-        const compilation = (prop as Node).toIntermediary(functions, nodes, parameters)
+        const compilation = (prop as Node).toIntermediary(functionMap, nodeMap, parameterMap)
 
-        if (!nodes.has(self as Node)) {
-          nodes.set(self as Node, {
+        if (!nodeMap.has(self as Node)) {
+          /* 
+            we initialize this node to the node-pool
+          */
+          nodeMap.set(self as Node, {
             id: (uuid.node++).toString(),
             visited: false,
             intermediary: compilation,
@@ -87,21 +91,28 @@ class Node<
           })
         }
 
-        if (!compilation.pure) {
-          pure = false
-          props[key] = compilation
+        if (compilation.pure) {
+          /* 
+            if the compilation-result of this node is pure,
+            we can immediately execute the result.
+          */
+          props[key] = eval(`${(prop as Node).func.toString()}`)(compilation.props)
           continue
         }
 
-        props[key] = eval(`${prop.func.toString()}`)(compilation.props)
+        /* 
+          if it was impure, we store the intermediary result
+        */
+        pure = false
+        props[key] = compilation
         continue
       }
 
       props[key] = prop
     }
 
-    if (!functions.has(this.func)) {
-      functions.set(this.func, { id: `fn__${uuid.function++}`, used: false })
+    if (!functionMap.has(this.func)) {
+      functionMap.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
     }
 
     return {
@@ -136,7 +147,7 @@ class Parameter<T> {
 
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
-  functions: Map<(...args: any[]) => any, FunctionCache>,
+  functions: Map<Func, FunctionCache>,
   nodes: Map<Node, NodeCache>,
   parameters: Map<Accessor<any>, string>,
 ) => {
@@ -156,8 +167,9 @@ const intermediaryToCode = (
     if (typeof prop === 'object') {
       const resolvedProps = intermediaryToCode(prop, functions, nodes, parameters)
       if (node?.visited) {
+        console.log('node.id is ', node.id)
         node.used = true
-        string += `memo__${node.id}`
+        string += `__node__${node.id}`
       } else {
         string += resolvedProps
       }
@@ -190,37 +202,20 @@ type NodeCache = {
   used: boolean
 }
 
-class Network<TProps extends Record<string, any>> {
+class Network {
   nodes: Node[] = []
   selectedNode: Accessor<Node | undefined>
   selectNode: (node: Node) => void
-  parameters: TProps
   constructor() {
     const [selectedNode, setSelectedNode] = createSignal<Node>()
     this.selectNode = node => setSelectedNode(node)
     this.selectedNode = selectedNode
-    this.parameters = {} as TProps
-  }
-  createParameter<T>(key: keyof TProps, value: T) {
-    const parameter = new Parameter(key, value)
-    this.parameters = mergeGetters(this.parameters, {
-      get [key]() {
-        return parameter.exec()
-      },
-      set [key](value: T) {
-        parameter.set(value)
-      },
-    })
-    return parameter
-  }
-  setParameter<TKey extends keyof TProps>(key: TKey, value: TProps[TKey]) {
-    this.parameters[key] = value
   }
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
-    T extends ((props: TProps) => any) | Network<TProps>,
-  >(func: T, props: PropsAccessor<TProps>) {
-    const node = new Node<TProps, T>(func, props)
+    T extends (props: TProps) => any,
+  >(func: T, props: PropsAccessor) {
+    const node = new Node(func, props)
     this.nodes.push(node)
     return node
   }
@@ -229,7 +224,7 @@ class Network<TProps extends Record<string, any>> {
   }
   toCode() {
     /* !CAUTION! we mutate nodes and paremeters inside toIntermediary !CAUTION! */
-    const functions = new Map<(...args: any[]) => any, FunctionCache>()
+    const functions = new Map<Func, FunctionCache>()
     const nodes = new Map<Node, NodeCache>()
     const parameters = new Map<Accessor<any>, string>()
     const intermediary = this.selectedNode()?.toIntermediary(functions, nodes, parameters)!
@@ -244,7 +239,7 @@ class Network<TProps extends Record<string, any>> {
       .filter(node => node.used)
       .map(
         node =>
-          `const memo__${node.id} = ${intermediaryToCode(
+          `const __node__${node.id} = ${intermediaryToCode(
             node.intermediary,
             functions,
             nodes,
