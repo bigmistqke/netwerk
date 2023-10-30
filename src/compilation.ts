@@ -46,11 +46,11 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   createInstance() {
     return new Node(this.func, this.props())
   }
-  toIntermediary(
-    functionPool: Map<Func, FunctionCache>,
-    nodePool: Map<Node, NodeCache>,
-    parameterPool: Map<Accessor<any>, string>,
-  ) {
+  toIntermediary(cache: {
+    function: Map<Func, FunctionCache>
+    node: Map<Node, NodeCache>
+    parameter: Map<Accessor<any>, string>
+  }) {
     const props = { ...this.props() }
     let pure = true
     let self = this as Node
@@ -66,7 +66,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
       /* this prop is a Node */
       if (typeof prop === 'object' && 'exec' in prop) {
-        const _node = nodePool.get(prop as Node)
+        const _node = cache.node.get(prop as Node)
         if (_node) {
           /* 
             The prop/node was already initialized in nodeMap:
@@ -77,13 +77,13 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           _node.visited = true
         }
 
-        const compilation = (prop as Node).toIntermediary(functionPool, nodePool, parameterPool)
+        const compilation = (prop as Node).toIntermediary(cache)
 
-        if (!nodePool.has(prop as Node)) {
+        if (!cache.node.has(prop as Node)) {
           /* 
             we initialize this props/node to the node-pool
           */
-          nodePool.set(prop as Node, {
+          cache.node.set(prop as Node, {
             id: (uuid.node++).toString(),
             visited: false,
             intermediary: compilation,
@@ -111,8 +111,8 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       props[key] = prop
     }
 
-    if (!functionPool.has(this.func)) {
-      functionPool.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
+    if (!cache.function.has(this.func)) {
+      cache.function.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
     }
 
     return {
@@ -147,42 +147,37 @@ class Parameter<T> {
 
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
-  functionPool: Map<Func, FunctionCache>,
-  nodePool: Map<Node, NodeCache>,
-  parameterPool: Map<Accessor<any>, string>,
+  cache: CompilationCache,
 ) => {
-  if (functionPool.has(intermediary.func)) {
-    functionPool.get(intermediary.func)!.used = true
+  if (cache.function.has(intermediary.func)) {
+    cache.function.get(intermediary.func)!.used = true
   }
 
   let string = ''
   string += `(`
-  string += functionPool.get(intermediary.func)?.id || intermediary.func.toString()
+  string += cache.function.get(intermediary.func)?.id || intermediary.func.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
     string += ': '
 
-    const node = nodePool.get(prop.node)
+    const node = cache.node.get(prop.node)
 
     if (typeof prop === 'object') {
-      console.log('prop is ', prop, node)
-      const resolvedProps = intermediaryToCode(prop, functionPool, nodePool, parameterPool)
+      const resolvedProps = intermediaryToCode(prop, cache)
       if (node?.visited) {
-        console.log('node.id is ', node.id)
         node.used = true
         string += `__node__${node.id}`
       } else {
         string += resolvedProps
       }
     } else if (typeof prop === 'function') {
-      let id = parameterPool.get(prop)
+      let id = cache.parameter.get(prop)
       if (!id) {
         id = 'parameter__' + uuid.parameter++
-        parameterPool.set(prop, id)
+        cache.parameter.set(prop, id)
       }
-      console.log('prop is ', parameterPool.get(prop))
-      string += parameterPool.get(prop)
+      string += cache.parameter.get(prop)
     } else {
       string += prop
     }
@@ -190,9 +185,13 @@ const intermediaryToCode = (
   })
   string += '})'
 
-  console.log('string is ::: ', string)
-
   return string
+}
+
+type CompilationCache = {
+  function: Map<Func, FunctionCache>
+  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
+  parameter: Map<() => any, string>
 }
 
 type FunctionCache = {
@@ -228,37 +227,27 @@ class Network {
     return this.selectedNode?.()?.exec()
   }
   toCode() {
-    /* !CAUTION! we mutate nodes and paremeters inside toIntermediary !CAUTION! */
-    const functions = new Map<Func, FunctionCache>()
-    const nodes = new Map<Node, NodeCache>()
-    const parameters = new Map<Accessor<any>, string>()
-    const intermediary = this.selectedNode()?.toIntermediary(functions, nodes, parameters)!
+    /* !CAUTION! we mutate cache inside toIntermediary !CAUTION! */
+    const cache: CompilationCache = {
+      function: new Map(),
+      node: new Map(),
+      parameter: new Map(),
+    }
 
-    const code = intermediaryToCode(intermediary, functions, nodes, parameters)
+    const intermediary = this.selectedNode()?.toIntermediary(cache)!
 
-    console.log(
-      'used nodes after compilation:::',
-      Array.from(nodes.values()).filter(node => node.used),
-    )
+    const code = intermediaryToCode(intermediary, cache)
 
-    const functionsToCode = Array.from(functions.entries())
+    const functionsToCode = Array.from(cache.function.entries())
       .filter(([, { used }]) => used)
       .map(([func, data]) => `const ${data.id} = ${func.toString()};`)
 
-    const usedNodesToCode = Array.from(nodes.values())
+    const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
-      .map(
-        node =>
-          `const __node__${node.id} = ${intermediaryToCode(
-            node.intermediary,
-            functions,
-            nodes,
-            parameters,
-          )};`,
-      )
+      .map(node => `const __node__${node.id} = ${intermediaryToCode(node.intermediary, cache)};`)
 
     return `
-(${Array.from(parameters.values()).join(', ')}) => {
+(${Array.from(cache.parameter.values()).join(', ')}) => {
   ${[...functionsToCode, ...usedNodesToCode].join('\n  ')}\n
   return ${code}
 }`
