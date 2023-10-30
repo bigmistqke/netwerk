@@ -1,12 +1,37 @@
 import { createLazyMemo } from '@solid-primitives/memo'
 import { createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
 
-import { Edge, Nodes } from './types'
+import { Edge, Func, Nodes } from './types'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
 }
-type Func = (...args: any[]) => any
+
+type CompilationCache = {
+  atom: Map<Func, FunctionCache>
+  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
+  parameter: Map<() => any, string>
+}
+
+type FunctionCache = {
+  id: string
+  used: boolean
+}
+
+type NodeCache = {
+  id: string
+  visited: boolean
+  intermediary: any
+  used: boolean
+}
+
+const uuid_reset = {
+  parameter: 0,
+  atom: 0,
+  node: 0,
+  nodeCache: 0,
+}
+let uuid = { ...uuid_reset }
 
 const resolveProps = <T>(_props: T) => {
   const props = {} as T
@@ -16,8 +41,9 @@ const resolveProps = <T>(_props: T) => {
       props[key] = prop()
       continue
     }
-    if (typeof prop === 'object' && 'exec' in prop) {
-      props[key] = prop.exec()
+    if (prop && typeof prop === 'object' && 'exec' in prop) {
+      /* ugly type-cast ¯\_(ツ)_/¯ */
+      props[key] = (prop as unknown as Node).exec()
       continue
     }
     props[key] = prop
@@ -25,11 +51,10 @@ const resolveProps = <T>(_props: T) => {
   return props
 }
 
-let id = 0
 class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
   atom: T
   props: Accessor<PropsAccessor<TProps>>
-  id = ++id
+  id = ++uuid.node
   setProps: (props: Partial<PropsAccessor<TProps>>) => void
   constructor(atom: T, props: PropsAccessor<TProps>) {
     this.atom = atom
@@ -62,25 +87,25 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
       /* this prop is a Node */
       if (typeof prop === 'object' && 'exec' in prop) {
-        const _node = cache.node.get(prop as Node)
-        if (_node) {
+        const node_cache = cache.node.get(prop as Node)
+        if (node_cache) {
           /* 
             The prop/node was already initialized in nodeMap:
             This means that we visited the same node at least two times.
             We mark the node in the nodeMap as visited.
             This will initialize node-memoization during code-generation.
           */
-          _node.visited = true
+          node_cache.visited = true
         }
 
         const compilation = (prop as Node).toIntermediary(cache)
 
-        if (!cache.node.has(prop as Node)) {
+        if (!node_cache) {
           /* 
             we initialize this props/node to the node-pool
           */
           cache.node.set(prop as Node, {
-            id: (uuid.node++).toString(),
+            id: (uuid.nodeCache++).toString(),
             visited: false,
             intermediary: compilation,
             used: false,
@@ -184,24 +209,6 @@ const intermediaryToCode = (
   return string
 }
 
-type CompilationCache = {
-  atom: Map<Func, FunctionCache>
-  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
-  parameter: Map<() => any, string>
-}
-
-type FunctionCache = {
-  id: string
-  used: boolean
-}
-
-type NodeCache = {
-  id: string
-  visited: boolean
-  intermediary: any
-  used: boolean
-}
-
 class Network {
   nodes: Node[] = []
   selectedNode: Accessor<Node | undefined>
@@ -250,21 +257,13 @@ class Network {
   }
 }
 
-let uuid = {
-  parameter: 0,
-  atom: 0,
-  node: 0,
-}
 export const createIntermediaryFromGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
-  uuid = {
-    atom: 0,
-    node: 0,
-    parameter: 0,
-  }
+  /* reset uuid */
+  uuid = { ...uuid_reset }
   const network = new Network()
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes).map(([nodeId, node]) => {

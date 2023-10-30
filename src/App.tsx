@@ -40,7 +40,7 @@ const createEdges = (nodes: Nodes, amount = 50) => {
 }
 
 const createSum = (ctx: Record<string, Record<string, Func>>, parameters = {}) => ({
-  atom: ctx.std.add,
+  atom: eval('ctx.std.add'),
   output: 'number',
   parameters: {
     a: {
