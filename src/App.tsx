@@ -85,7 +85,7 @@ const App: Component = () => {
       ...createSum({
         a: {
           type: 'number',
-          value: 2,
+          value: 0,
         },
         b: {
           type: 'number',
@@ -113,6 +113,22 @@ const App: Component = () => {
         y: 100,
       },
     },
+    sum3: {
+      ...createSum({
+        a: {
+          type: 'number',
+          value: 0,
+        },
+        b: {
+          type: 'number',
+          value: 3,
+        },
+      }),
+      position: {
+        x: 300,
+        y: 150,
+      },
+    },
     multiply: {
       ...multiply,
       position: {
@@ -125,6 +141,10 @@ const App: Component = () => {
   const [edges, setEdges] = createStore([
     {
       start: { nodeId: 'sum', handleId: 'output' },
+      end: { nodeId: 'sum3', handleId: 'a' },
+    },
+    {
+      start: { nodeId: 'sum3', handleId: 'output' },
       end: { nodeId: 'multiply', handleId: 'a' },
     },
     {

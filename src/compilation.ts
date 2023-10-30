@@ -53,10 +53,7 @@ class Node<
   createInstance() {
     return new Node(this.func, this.props())
   }
-  toIntermediary(
-    nodes: Map<Node, { id: string; visited: boolean }>,
-    parameters: Map<Accessor<any>, string>,
-  ) {
+  toIntermediary(nodes: Map<Node, NodeCache>, parameters: Map<Accessor<any>, string>) {
     const props = { ...this.props() }
     let pure = true
     let self = this as Node
@@ -69,15 +66,22 @@ class Node<
         continue
       }
       if (typeof prop === 'object' && 'exec' in prop) {
-        if (nodes.has(self)) {
-          const node = nodes.get(self)!
-          if (!node.visited) nodes.set(self, { id: node.id, visited: true })
-        } else {
-          nodes.set(self, { id: (uuid++).toString(), visited: false })
+        if (nodes.has(self as Node)) {
+          const node = nodes.get(self as Node)!
+          node.visited = true
         }
 
-        // const parameters = new Map<Accessor<any>, string>()
         const compilation = prop.toIntermediary(nodes, parameters)
+
+        if (!nodes.has(self as Node)) {
+          nodes.set(self as Node, {
+            id: (uuid++).toString(),
+            visited: false,
+            intermediary: compilation,
+            used: false,
+          })
+        }
+
         if (!compilation.pure) {
           pure = false
           props[key] = compilation
@@ -94,6 +98,7 @@ class Node<
       pure,
       func: this.func,
       props,
+      node: self,
     }
   }
   exec = createLazyMemo(() => {
@@ -121,23 +126,27 @@ class Parameter<T> {
 
 let uuid = 0
 const intermediaryToCode = (
-  intermediary: {
-    func: (props: Record<string, any>) => any
-    props: Record<string, any>
-  },
+  intermediary: ReturnType<Node['toIntermediary']>,
   parameters: Map<Accessor<any>, string>,
+  nodes: Map<Node, NodeCache>,
 ) => {
+  const node = nodes.get(intermediary.node)
+
   let string = ''
-  string += '('
+  string += `(`
   string += intermediary.func.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
     string += ': '
-
     if (typeof prop === 'object') {
-      const resolvedProps = intermediaryToCode(prop, parameters)
-      string += resolvedProps
+      const resolvedProps = intermediaryToCode(prop, parameters, nodes)
+      if (node?.visited) {
+        node.used = true
+        string += `memo__${node.id}`
+      } else {
+        string += resolvedProps
+      }
     } else if (typeof prop === 'function') {
       let id = parameters.get(prop)
       if (!id) {
@@ -153,6 +162,13 @@ const intermediaryToCode = (
   string += '})'
 
   return string
+}
+
+type NodeCache = {
+  id: string
+  visited: boolean
+  intermediary: any
+  used: boolean
 }
 
 class Network<TProps extends Record<string, any>> {
@@ -193,11 +209,24 @@ class Network<TProps extends Record<string, any>> {
     return this.selectedNode?.()?.exec()
   }
   toCode() {
-    const nodes = new Map<Node, { id: string; visited: boolean }>()
+    /* !CAUTION! we mutate nodes and paremeters inside toIntermediary !CAUTION! */
+    const nodes = new Map<Node, NodeCache>()
     const parameters = new Map<Accessor<any>, string>()
     const intermediary = this.selectedNode()?.toIntermediary(nodes, parameters)!
-    const code = intermediaryToCode(intermediary, parameters)
-    return `(${Array.from(parameters.values()).join(', ')}) => (${code})`
+    const code = intermediaryToCode(intermediary, parameters, nodes)
+
+    const usedNodes = Array.from(nodes.values())
+      .filter(node => node.used)
+      .map(
+        node =>
+          `\nconst memo__${node.id} = ${intermediaryToCode(node.intermediary, parameters, nodes)};`,
+      )
+      .join('\n')
+
+    return `
+(${Array.from(parameters.values()).join(', ')}) => {${usedNodes}
+  return ${code}
+}`
   }
 }
 
@@ -240,7 +269,7 @@ export const compileGraph = (graph: {
     try {
       const code = createIntermediaryFromGraph(graph).toCode()
       const result = eval(code)
-      console.log('code: ', code)
+      console.log('code:\n', code)
       return result
     } catch (err) {
       console.error(err)
