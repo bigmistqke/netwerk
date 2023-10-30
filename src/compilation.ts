@@ -53,12 +53,16 @@ class Node<
   createInstance() {
     return new Node(this.func, this.props())
   }
-  toIntermediary(nodes: Map<Node, NodeCache>, parameters: Map<Accessor<any>, string>) {
+  toIntermediary(
+    functions: Map<(...args: any[]) => any, string>,
+    nodes: Map<Node, NodeCache>,
+    parameters: Map<Accessor<any>, string>,
+  ) {
     const props = { ...this.props() }
     let pure = true
     let self = this as Node
     for (const key in props) {
-      const prop = this.props()[key]
+      let prop = this.props()[key]
       if (typeof prop === 'function') {
         /* a function as entry-point will mark a path as impure */
         pure = false
@@ -66,12 +70,13 @@ class Node<
         continue
       }
       if (typeof prop === 'object' && 'exec' in prop) {
+        prop = prop as Node
         if (nodes.has(self as Node)) {
           const node = nodes.get(self as Node)!
           node.visited = true
         }
 
-        const compilation = prop.toIntermediary(nodes, parameters)
+        const compilation = (prop as Node).toIntermediary(functions, nodes, parameters)
 
         if (!nodes.has(self as Node)) {
           nodes.set(self as Node, {
@@ -94,6 +99,11 @@ class Node<
 
       props[key] = prop
     }
+
+    if (!functions.get(this.func)) {
+      functions.set(this.func, `fn__${id++}`)
+    }
+
     return {
       pure,
       func: this.func,
@@ -127,20 +137,21 @@ class Parameter<T> {
 let uuid = 0
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
-  parameters: Map<Accessor<any>, string>,
+  functions: Map<(...args: any[]) => any, string>,
   nodes: Map<Node, NodeCache>,
+  parameters: Map<Accessor<any>, string>,
 ) => {
   const node = nodes.get(intermediary.node)
 
   let string = ''
   string += `(`
-  string += intermediary.func.toString()
+  string += functions.get(intermediary.func) || intermediary.func.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
     string += ': '
     if (typeof prop === 'object') {
-      const resolvedProps = intermediaryToCode(prop, parameters, nodes)
+      const resolvedProps = intermediaryToCode(prop, functions, nodes, parameters)
       if (node?.visited) {
         node.used = true
         string += `memo__${node.id}`
@@ -210,21 +221,31 @@ class Network<TProps extends Record<string, any>> {
   }
   toCode() {
     /* !CAUTION! we mutate nodes and paremeters inside toIntermediary !CAUTION! */
+    const functions = new Map<(...args: any[]) => any, string>()
     const nodes = new Map<Node, NodeCache>()
     const parameters = new Map<Accessor<any>, string>()
-    const intermediary = this.selectedNode()?.toIntermediary(nodes, parameters)!
-    const code = intermediaryToCode(intermediary, parameters, nodes)
+    const intermediary = this.selectedNode()?.toIntermediary(functions, nodes, parameters)!
+    const code = intermediaryToCode(intermediary, functions, nodes, parameters)
 
-    const usedNodes = Array.from(nodes.values())
+    const functionsToCode = Array.from(functions.entries()).map(
+      ([func, functionId]) => `const ${functionId} = ${func.toString()};`,
+    )
+
+    const usedNodesToCode = Array.from(nodes.values())
       .filter(node => node.used)
       .map(
         node =>
-          `\nconst memo__${node.id} = ${intermediaryToCode(node.intermediary, parameters, nodes)};`,
+          `const memo__${node.id} = ${intermediaryToCode(
+            node.intermediary,
+            functions,
+            nodes,
+            parameters,
+          )};`,
       )
-      .join('\n')
 
     return `
-(${Array.from(parameters.values()).join(', ')}) => {${usedNodes}
+(${Array.from(parameters.values()).join(', ')}) => {
+  ${[...functionsToCode, ...usedNodesToCode].join('\n  ')}\n
   return ${code}
 }`
   }
