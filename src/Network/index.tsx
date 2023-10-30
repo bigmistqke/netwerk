@@ -101,6 +101,7 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
                       >
                         <Anchor style={{ top: '0px', left: '50%' }} />
                         {handleId}
+                        {handleEntry()[1].value}
                       </Handle>
                     )
                   }}

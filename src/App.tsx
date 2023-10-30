@@ -85,11 +85,11 @@ const App: Component = () => {
       ...createSum({
         a: {
           type: 'number',
-          value,
+          value: 2,
         },
         b: {
           type: 'number',
-          value: 0,
+          value: 1,
         },
       }),
       position: {
@@ -101,7 +101,7 @@ const App: Component = () => {
       ...createSum({
         a: {
           type: 'number',
-          value: 1,
+          value,
         },
         b: {
           type: 'number',
@@ -111,22 +111,6 @@ const App: Component = () => {
       position: {
         x: 200,
         y: 100,
-      },
-    },
-    sum3: {
-      ...createSum({
-        a: {
-          type: 'number',
-          value: 1,
-        },
-        b: {
-          type: 'number',
-          value: 3,
-        },
-      }),
-      position: {
-        x: 200,
-        y: 0,
       },
     },
     multiply: {
@@ -145,12 +129,12 @@ const App: Component = () => {
     },
     {
       start: { nodeId: 'sum2', handleId: 'output' },
-      end: { nodeId: 'multiply', handleId: 'b' },
+      end: { nodeId: 'sum', handleId: 'b' },
     },
-    {
-      start: { nodeId: 'sum3', handleId: 'output' },
+    /* {
+      start: { nodeId: 'multiply3', handleId: 'output' },
       end: { nodeId: 'sum2', handleId: 'a' },
-    },
+    }, */
   ])
 
   const compiledGraph = compileGraph({ nodes, edges, selectedNodeId: 'multiply' })

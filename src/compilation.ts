@@ -53,23 +53,31 @@ class Node<
   createInstance() {
     return new Node(this.func, this.props())
   }
-  toIntermediary(funcs: Set<(args: any[]) => any>, parameters: Map<Accessor<any>, string>) {
+  toIntermediary(
+    nodes: Map<Node, { id: string; visited: boolean }>,
+    parameters: Map<Accessor<any>, string>,
+  ) {
     const props = { ...this.props() }
     let pure = true
+    let self = this as Node
     for (const key in props) {
       const prop = this.props()[key]
       if (typeof prop === 'function') {
         /* a function as entry-point will mark a path as impure */
-        funcs.add(prop)
-
         pure = false
         props[key] = prop
         continue
       }
       if (typeof prop === 'object' && 'exec' in prop) {
-        funcs.add(prop.func)
+        if (nodes.has(self)) {
+          const node = nodes.get(self)!
+          if (!node.visited) nodes.set(self, { id: node.id, visited: true })
+        } else {
+          nodes.set(self, { id: (uuid++).toString(), visited: false })
+        }
 
-        const compilation = prop.toIntermediary(funcs, parameters)
+        // const parameters = new Map<Accessor<any>, string>()
+        const compilation = prop.toIntermediary(nodes, parameters)
         if (!compilation.pure) {
           pure = false
           props[key] = compilation
@@ -185,9 +193,9 @@ class Network<TProps extends Record<string, any>> {
     return this.selectedNode?.()?.exec()
   }
   toCode() {
-    const funcs = new Set<(args: any[]) => any>()
+    const nodes = new Map<Node, { id: string; visited: boolean }>()
     const parameters = new Map<Accessor<any>, string>()
-    const intermediary = this.selectedNode()?.toIntermediary(funcs, parameters)!
+    const intermediary = this.selectedNode()?.toIntermediary(nodes, parameters)!
     const code = intermediaryToCode(intermediary, parameters)
     return `(${Array.from(parameters.values()).join(', ')}) => (${code})`
   }
@@ -228,11 +236,11 @@ export const compileGraph = (graph: {
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
-  const code = () => createIntermediaryFromGraph(graph).toCode()
   return createMemo(prev => {
     try {
-      console.log('code: ', code())
-      const result = eval(code())
+      const code = createIntermediaryFromGraph(graph).toCode()
+      const result = eval(code)
+      console.log('code: ', code)
       return result
     } catch (err) {
       console.error(err)
