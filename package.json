@@ -1,0 +1,22 @@
+{
+  "name": "nodebox-3.0",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@solid-primitives/memo": "^1.3.5",
+    "clsx": "^2.0.0",
+    "solid-js": "^1.7.8",
+    "zeptoid": "^1.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vite-plugin-solid": "^2.7.0"
+  }
+}

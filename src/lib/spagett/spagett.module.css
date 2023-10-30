@@ -1,0 +1,23 @@
+foreignObject {
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+
+foreignObject > * {
+  pointer-events: all;
+  user-select: none;
+  contain: content;
+}
+
+.line {
+  stroke: white;
+}
+
+body {
+  padding: 0px;
+}
+
+.svg {
+  contain: content;
+}
