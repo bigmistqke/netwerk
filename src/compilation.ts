@@ -47,9 +47,9 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
     return new Node(this.func, this.props())
   }
   toIntermediary(
-    functionMap: Map<Func, FunctionCache>,
-    nodeMap: Map<Node, NodeCache>,
-    parameterMap: Map<Accessor<any>, string>,
+    functionPool: Map<Func, FunctionCache>,
+    nodePool: Map<Node, NodeCache>,
+    parameterPool: Map<Accessor<any>, string>,
   ) {
     const props = { ...this.props() }
     let pure = true
@@ -66,10 +66,10 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
       /* this prop is a Node */
       if (typeof prop === 'object' && 'exec' in prop) {
-        const _node = nodeMap.get(self as Node)
+        const _node = nodePool.get(prop as Node)
         if (_node) {
           /* 
-            The parent-node was already initialized in nodeMap:
+            The prop/node was already initialized in nodeMap:
             This means that we visited the same node at least two times.
             We mark the node in the nodeMap as visited.
             This will initialize node-memoization during code-generation.
@@ -77,13 +77,13 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           _node.visited = true
         }
 
-        const compilation = (prop as Node).toIntermediary(functionMap, nodeMap, parameterMap)
+        const compilation = (prop as Node).toIntermediary(functionPool, nodePool, parameterPool)
 
-        if (!nodeMap.has(self as Node)) {
+        if (!nodePool.has(prop as Node)) {
           /* 
-            we initialize this node to the node-pool
+            we initialize this props/node to the node-pool
           */
-          nodeMap.set(self as Node, {
+          nodePool.set(prop as Node, {
             id: (uuid.node++).toString(),
             visited: false,
             intermediary: compilation,
@@ -111,8 +111,8 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       props[key] = prop
     }
 
-    if (!functionMap.has(this.func)) {
-      functionMap.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
+    if (!functionPool.has(this.func)) {
+      functionPool.set(this.func, { id: `__fn__${uuid.function++}`, used: false })
     }
 
     return {
@@ -147,25 +147,27 @@ class Parameter<T> {
 
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
-  functions: Map<Func, FunctionCache>,
-  nodes: Map<Node, NodeCache>,
-  parameters: Map<Accessor<any>, string>,
+  functionPool: Map<Func, FunctionCache>,
+  nodePool: Map<Node, NodeCache>,
+  parameterPool: Map<Accessor<any>, string>,
 ) => {
-  const node = nodes.get(intermediary.node)
-
-  if (functions.has(intermediary.func)) {
-    functions.get(intermediary.func)!.used = true
+  if (functionPool.has(intermediary.func)) {
+    functionPool.get(intermediary.func)!.used = true
   }
 
   let string = ''
   string += `(`
-  string += functions.get(intermediary.func)?.id || intermediary.func.toString()
+  string += functionPool.get(intermediary.func)?.id || intermediary.func.toString()
   string += ')({'
   Object.entries(intermediary.props).forEach(([propId, prop]) => {
     string += propId
     string += ': '
+
+    const node = nodePool.get(prop.node)
+
     if (typeof prop === 'object') {
-      const resolvedProps = intermediaryToCode(prop, functions, nodes, parameters)
+      console.log('prop is ', prop, node)
+      const resolvedProps = intermediaryToCode(prop, functionPool, nodePool, parameterPool)
       if (node?.visited) {
         console.log('node.id is ', node.id)
         node.used = true
@@ -174,18 +176,21 @@ const intermediaryToCode = (
         string += resolvedProps
       }
     } else if (typeof prop === 'function') {
-      let id = parameters.get(prop)
+      let id = parameterPool.get(prop)
       if (!id) {
         id = 'parameter__' + uuid.parameter++
-        parameters.set(prop, id)
+        parameterPool.set(prop, id)
       }
-      string += id
+      console.log('prop is ', parameterPool.get(prop))
+      string += parameterPool.get(prop)
     } else {
       string += prop
     }
     string += ','
   })
   string += '})'
+
+  console.log('string is ::: ', string)
 
   return string
 }
@@ -230,6 +235,11 @@ class Network {
     const intermediary = this.selectedNode()?.toIntermediary(functions, nodes, parameters)!
 
     const code = intermediaryToCode(intermediary, functions, nodes, parameters)
+
+    console.log(
+      'used nodes after compilation:::',
+      Array.from(nodes.values()).filter(node => node.used),
+    )
 
     const functionsToCode = Array.from(functions.entries())
       .filter(([, { used }]) => used)
@@ -302,8 +312,10 @@ export const compileGraph = (graph: {
 }) => {
   return createMemo(prev => {
     try {
+      console.time('compilation')
       const code = createIntermediaryFromGraph(graph).toCode()
       const result = eval(code)
+      console.timeEnd('compilation')
       console.log('code:\n', code)
       return result
     } catch (err) {

@@ -41,9 +41,11 @@ const createEdges = (nodes: Nodes, amount = 50) => {
 
 const App: Component = () => {
   const [value, setValue] = createSignal(2)
+  const [value2, setValue2] = createSignal(2)
 
   setTimeout(() => {
     setValue(100)
+    setValue2(200)
   }, 1000)
 
   const sum = eval('(args)=>args.a+args.b')
@@ -85,7 +87,7 @@ const App: Component = () => {
       ...createSum({
         a: {
           type: 'number',
-          value: 0,
+          value: value2,
         },
         b: {
           type: 'number',
@@ -174,7 +176,7 @@ const App: Component = () => {
   ])
 
   const compiledGraph = compileGraph({ nodes, edges, selectedNodeId: 'multiply' })
-  createEffect(() => console.log(compiledGraph()(value())))
+  createEffect(() => console.log(compiledGraph()(value2(), value())))
 
   return (
     <div>
