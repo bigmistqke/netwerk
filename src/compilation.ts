@@ -80,7 +80,7 @@ class Node<
 
         if (!nodes.has(self as Node)) {
           nodes.set(self as Node, {
-            id: (uuid++).toString(),
+            id: (uuid.node++).toString(),
             visited: false,
             intermediary: compilation,
             used: false,
@@ -101,7 +101,7 @@ class Node<
     }
 
     if (!functions.get(this.func)) {
-      functions.set(this.func, `fn__${id++}`)
+      functions.set(this.func, `fn__${uuid.function++}`)
     }
 
     return {
@@ -134,7 +134,6 @@ class Parameter<T> {
   }
 }
 
-let uuid = 0
 const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
   functions: Map<(...args: any[]) => any, string>,
@@ -161,7 +160,7 @@ const intermediaryToCode = (
     } else if (typeof prop === 'function') {
       let id = parameters.get(prop)
       if (!id) {
-        id = 'parameter__' + uuid++
+        id = 'parameter__' + uuid.parameter++
         parameters.set(prop, id)
       }
       string += id
@@ -251,11 +250,21 @@ class Network<TProps extends Record<string, any>> {
   }
 }
 
+let uuid = {
+  parameter: 0,
+  function: 0,
+  node: 0,
+}
 export const createIntermediaryFromGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
+  uuid = {
+    function: 0,
+    node: 0,
+    parameter: 0,
+  }
   const network = new Network()
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes).map(([nodeId, node]) => {
