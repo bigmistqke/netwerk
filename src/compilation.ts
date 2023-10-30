@@ -270,7 +270,7 @@ export const createIntermediaryFromGraph = (graph: {
       return [
         nodeId,
         network.createNode(
-          node.atom,
+          node.atom.func,
           Object.fromEntries(
             Object.entries(node.parameters).map(([id, parameter]) => {
               return [id, parameter.value]

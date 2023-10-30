@@ -39,7 +39,7 @@ const createEdges = (nodes: Nodes, amount = 50) => {
   })
 }
 
-const createSum = (ctx: Record<string, Record<string, Func>>, parameters = {}) => ({
+const createSum = (ctx: Record<string, Record<string, { func: Func }>>, parameters = {}) => ({
   atom: eval('ctx.std.add'),
   output: 'number',
   parameters: {
@@ -60,11 +60,11 @@ const App: Component = () => {
   const [value2, setValue2] = createSignal(2)
 
   const std = {
-    add: args => args.a + args.b,
-    multiply: args => args.a * args.b,
+    add: { func: args => args.a + args.b },
+    multiply: { func: args => args.a * args.b },
   }
 
-  const context = {
+  const ctx = {
     std,
   }
 
@@ -73,11 +73,8 @@ const App: Component = () => {
     setValue2(200)
   }, 1000)
 
-  const sum = eval('(args)=>args.a+args.b')
-  const multiplyString = '(args)=>args.a*args.b'
-
   const multiply = {
-    atom: eval(multiplyString),
+    atom: eval('ctx.std.multiply'),
     output: 'multiply',
     parameters: {
       a: {
@@ -91,9 +88,9 @@ const App: Component = () => {
     },
   }
 
-  const [nodes, setNodes] = createStore<Nodes>({
+  const [nodes] = createStore<Nodes>({
     sum: {
-      ...createSum(context, {
+      ...createSum(ctx, {
         a: {
           type: 'number',
           value: value2,
@@ -109,7 +106,7 @@ const App: Component = () => {
       },
     },
     sum2: {
-      ...createSum(context, {
+      ...createSum(ctx, {
         a: {
           type: 'number',
           value,
@@ -125,7 +122,7 @@ const App: Component = () => {
       },
     },
     sum3: {
-      ...createSum(context, {
+      ...createSum(ctx, {
         a: {
           type: 'number',
           value: 0,
@@ -141,7 +138,7 @@ const App: Component = () => {
       },
     },
     sum4: {
-      ...createSum(context, {
+      ...createSum(ctx, {
         a: {
           type: 'number',
           value: 3,
