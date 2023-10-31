@@ -17,7 +17,9 @@
   color: var(--color-front);
   cursor: move;
 
-  &:hover {
+  &:hover,
+  &:focus {
+    outline: none;
     border-color: var(--color-front);
     & .handle {
       border-color: var(--color-front);

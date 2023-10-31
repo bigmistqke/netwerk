@@ -92,8 +92,9 @@ export default function Network(props: {
             <Node
               position={node.position}
               id={nodeId}
-              onDrag={position => setNodes(nodeId, { position })}
+              onMove={position => setNodes(nodeId, { position })}
               class={clsx(styles.node, nodeId === props.selectedNodeId && styles.selected)}
+              tabIndex={0}
             >
               <div class={styles.handles}>
                 <Index each={Object.entries(node.parameters)}>
@@ -101,11 +102,11 @@ export default function Network(props: {
                     const [handleId, value] = handleEntry()
                     return (
                       <Handle
-                        onDrag={(position, hoveringHandle) =>
+                        onMove={(position, hoveringHandle) =>
                           onDragHandle({ nodeId, handleId: handleId }, position, hoveringHandle)
                         }
-                        onDragEnd={() => setTemporaryEdges(undefined)}
-                        onDrop={handle => onDrop(handle, { nodeId, handleId: handleId })}
+                        onMoveEnd={() => setTemporaryEdges(undefined)}
+                        onConnect={handle => onDrop(handle, { nodeId, handleId: handleId })}
                         class={styles.handle}
                         id={handleId}
                       >
@@ -121,11 +122,11 @@ export default function Network(props: {
               <div class={styles.nodeName}>{nodeId}</div>
               <div class={clsx(styles.handles, styles.out)}>
                 <Handle
-                  onDrag={(position, hoveringHandle) =>
+                  onMove={(position, hoveringHandle) =>
                     onDragHandle({ nodeId, handleId: 'output' }, position, hoveringHandle)
                   }
-                  onDragEnd={() => setTemporaryEdges(undefined)}
-                  onDrop={handle => onDrop(handle, { nodeId, handleId: 'output' })}
+                  onMoveEnd={() => setTemporaryEdges(undefined)}
+                  onConnect={handle => onDrop(handle, { nodeId, handleId: 'output' })}
                   id="output"
                   class={styles.handle}
                 >

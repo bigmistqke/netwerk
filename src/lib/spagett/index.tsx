@@ -80,14 +80,24 @@ const nodeContext = createContext<{
 const useGraphToNode = () => useContext(nodeContext)
 
 export const Node = function (
-  props: ParentProps<{
+  _props: ParentProps<{
     id: string
     position: Vector
-    onDrag: (position: Vector) => void
+    onMove: (position: Vector) => void
+    children: JSX.Element
     style?: JSX.CSSProperties
     class?: string
-  }>,
+  }> &
+    Omit<ComponentProps<'div'>, 'style' | 'onDrag'>,
 ) {
+  const [props, rest] = splitProps(_props, [
+    'children',
+    'class',
+    'id',
+    'onMove',
+    'position',
+    'style',
+  ])
   const graphContext = useGraph()
 
   if (!graphContext) throw 'Node should be sibling of Graph'
@@ -95,7 +105,7 @@ export const Node = function (
   const onMouseDown = (e: MouseEvent) => {
     const start = { ...props.position }
     cursor(e, delta => {
-      props.onDrag({
+      props.onMove({
         x: start.x - delta.x / graphContext.zoom,
         y: start.y - delta.y / graphContext.zoom,
       })
@@ -133,6 +143,7 @@ export const Node = function (
         }}
         class={props.class}
         onMouseDown={onMouseDown}
+        {...rest}
       >
         {props.children}
       </div>
@@ -152,10 +163,10 @@ const useHandleToAnchor = () => useContext(handleToAnchorContext)
 export function Handle(
   props: ParentProps<{
     id: string
-    onDrag?: (handle: Vector, hoveringHandle?: HandleType) => void
-    onDragStart?: () => void
-    onDragEnd?: () => void
-    onDrop?: (handle: HandleType) => void
+    onMove?: (handle: Vector, hoveringHandle?: HandleType) => void
+    onMoveStart?: () => void
+    onMoveEnd?: () => void
+    onConnect?: (handle: HandleType) => void
     style?: JSX.CSSProperties
     position?: Vector
     class?: string
@@ -200,21 +211,21 @@ export function Handle(
       nodeId: graphToNode.id,
     })
 
-    props.onDragStart?.()
+    props.onMoveStart?.()
 
     await cursor(e, delta => {
-      props.onDrag?.(
+      props.onMove?.(
         vector.subtract(vector.subtract(position, graph.offset), delta),
         graphToAnchor.hoveringHandle,
       )
     })
 
-    props.onDragEnd?.()
+    props.onMoveEnd?.()
     graphToAnchor.setDraggingHandle(undefined)
   }
 
   const onMouseUp = () =>
-    graphToAnchor.draggingHandle && props.onDrop && props.onDrop(graphToAnchor.draggingHandle)
+    graphToAnchor.draggingHandle && props.onConnect && props.onConnect(graphToAnchor.draggingHandle)
 
   const onMouseMove = () => {
     if (!graphToAnchor.draggingHandle) return
