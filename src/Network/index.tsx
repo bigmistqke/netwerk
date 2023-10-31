@@ -5,6 +5,8 @@ import type { Vector } from '@lib/spagett/types'
 import { createStore } from 'solid-js/store'
 import type { Edge as EdgeType, Handle as HandleType, Nodes } from 'src/types'
 
+import styles from './Network.module.css'
+
 const Step = (props: { start: Vector; end: Vector }) => {
   const middle = () => ({
     x: props.start.x - (props.start.x - props.end.x) / 2,
@@ -64,7 +66,7 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
     validateDrop(start, end) && setEdges(edges => [...edges, { start, end }])
 
   return (
-    <Graph style={{ height: '100vh', width: '100vw' }}>
+    <Graph style={{ height: '100%', width: '100%' }}>
       <Html.Destination>
         <For each={edges}>
           {edge => (
@@ -81,8 +83,8 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
               position={node.position}
               id={nodeId}
               onDrag={position => setNodes(nodeId, { position })}
+              class={styles.node}
               style={{
-                background: 'blue',
                 color: 'black',
               }}
             >

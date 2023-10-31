@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { Edge, Func, Nodes } from './types'
+import type { Atom, Edge, Func, Nodes } from './types'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
@@ -51,21 +51,15 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   atom: T
   props: Accessor<PropsAccessor<TProps>>
   id = ++uuid.node
-  setProps: (props: Partial<PropsAccessor<TProps>>) => void
+  updateProps: (props: Partial<PropsAccessor<TProps>>) => void
   constructor(atom: T, props: PropsAccessor<TProps>) {
     this.atom = atom
     const [_props, setProps] = createSignal<PropsAccessor<TProps>>(props)
     this.props = _props
-    this.setProps = props => setProps(p => ({ ...p, ...props }))
+    this.updateProps = props => setProps(p => ({ ...p, ...props }))
   }
   private resolveProps() {
     return resolveProps(this.props)
-  }
-  setAtom(atom: T) {
-    this.atom = atom
-  }
-  createInstance() {
-    return new Node(this.atom, this.props())
   }
   toIntermediary(cache: CompilationCache) {
     const props = { ...this.props() }
@@ -190,7 +184,7 @@ class Network {
   }
 }
 
-const createIntermediaryFromGraph = (graph: {
+const createNetworkFromGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
@@ -214,7 +208,7 @@ const createIntermediaryFromGraph = (graph: {
     }),
   )
   for (const edge of graph.edges) {
-    nodes[edge.end.nodeId].setProps({
+    nodes[edge.end.nodeId].updateProps({
       [edge.end.handleId]: nodes[edge.start.nodeId],
     })
   }
@@ -266,14 +260,10 @@ const intermediaryToCode = (
   return string
 }
 
-export const compileGraph = (graph: {
-  nodes: Nodes
-  edges: Edge[]
-  selectedNodeId: keyof Nodes
-}) => {
-  console.time('compilation')
-  const code = createIntermediaryFromGraph(graph).toCode()
-  const result = eval(code)
-  console.timeEnd('compilation')
-  return result as Func
+export const compileGraph = (graph: Atom) => {
+  let start = performance.now()
+  return {
+    func: 'nodes' in graph ? eval(createNetworkFromGraph(graph).toCode()) : graph.func,
+    time: performance.now() - start,
+  }
 }

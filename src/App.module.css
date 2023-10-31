@@ -1,0 +1,41 @@
+.panels {
+  display: grid;
+  grid-template-columns: 0.3fr 1fr 0.5fr;
+  height: 100vh;
+}
+
+.panel .panel {
+  border-right: none;
+}
+.panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-right: 1px solid lightgrey;
+  gap: var(--margin);
+}
+.panel:not(:has(.panel)) > div {
+  padding: var(--margin);
+}
+
+.panel:has(> *:only-child) {
+  grid-template-rows: 1fr;
+}
+
+.panel h2,
+.panel h3 {
+  padding: var(--margin);
+  border-bottom: 1px solid lightgrey;
+}
+
+.panel__code {
+  font-size: 10pt;
+  font-family: var(--mono);
+  white-space: pre-wrap;
+  padding: calc(var(--margin) * 2);
+}
+
+.panel ul {
+  padding: var(--margin);
+  display: flex;
+  gap: 5px;
+}

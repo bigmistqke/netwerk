@@ -1,15 +1,38 @@
+@font-face {
+  font-family: 'mono';
+  src: url('./assets/GeistMono-Regular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'geist';
+  src: url('./assets/Geist-Regular.otf') format('opentype');
+}
+
+:root {
+  --margin: 6px;
+  --mono: mono;
+  --font: geist;
+}
+
 body {
   margin: 0;
-  background: grey;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  background: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  all: unset;
+}
+ul {
+  all: unset;
 }

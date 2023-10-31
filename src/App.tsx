@@ -1,61 +1,18 @@
-import { Component, batch, createEffect, createMemo, createSignal } from 'solid-js'
-
+import { Component, Show, batch, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
+
 import Network from './Network/index'
 import { compileGraph } from './compilation'
-import type { Func, NetworkAtom, Nodes, Package } from './types'
-import { randomFromObject } from './utils/randomFromObject'
+import type { Func, NetworkAtom, Package } from './types'
 
-const createNodes = (amount = 100) => {
-  return Object.fromEntries(
-    new Array(amount).fill('').map((_, i) => [
-      i.toString(),
-      {
-        position: {
-          x: Math.random() * 8000,
-          y: Math.random() * 8000,
-        },
-        inputs: new Array(5).fill('').map((_, index) => index.toString()),
-        handles: new Array(5).fill('').map((_, index) => index.toString()),
-      },
-    ]),
-  )
-}
-
-const createEdges = (nodes: Nodes, amount = 50) => {
-  return new Array(amount).fill('').map((_, i) => {
-    const getHandle = () => {
-      const [nodeId, node] = randomFromObject(nodes)
-      const [handleId] = randomFromObject(node.handles)
-      return {
-        nodeId,
-        handleId,
-      }
-    }
-    return {
-      start: getHandle(),
-      end: getHandle(),
-    }
-  })
-}
-
-const createSum = (ctx: Record<string, Record<string, { func: Func }>>, parameters = {}) => ({
-  atom: eval('ctx.std.add'),
-  output: 'number',
-  parameters: {
-    a: {
-      type: 'number',
-      value: 0,
-    },
-    b: {
-      type: 'number',
-      value: 0,
-    },
-    ...parameters,
-  },
-})
+import styles from './App.module.css'
 
 const App: Component = () => {
+  const [selected, setSelected] = createSignal<{ packageId: keyof typeof ctx; atomId: string }>({
+    packageId: 'self',
+    atomId: 'main',
+  })
+
   const [value, setValue] = createSignal(2)
   const [value2, setValue2] = createSignal(2)
 
@@ -88,7 +45,7 @@ const App: Component = () => {
         },
       },
     },
-  }
+  } satisfies Package
 
   const ctx = {
     std,
@@ -220,22 +177,58 @@ const App: Component = () => {
     } as NetworkAtom,
   })
   ctx.self = self
-  const compiledGraph = createMemo<Func>(
+
+  const selectedAtom = () => (ctx[selected().packageId] as Package)[selected().atomId]
+
+  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
       try {
-        const result = compileGraph(self.main)
+        // we can not directly return compileGraph
+        // because otherwise we wouldn't catch it
+        // if it would throw
+        const result = compileGraph(selectedAtom())
         return result
       } catch {
         return prev
       }
     },
-    () => {},
+    { func: () => {}, time: 0 },
   )
-  createEffect(() => console.log(compiledGraph()(value2(), value())))
 
   return (
-    <div>
-      <Network nodes={self.main.nodes} edges={self.main.edges} />
+    <div class={styles.panels}>
+      <div class={styles.panel}>
+        <h2>Atoms</h2>
+        <div>
+          {Object.entries(ctx).map(([packageId, _package]) => (
+            <div class={styles.panel}>
+              <h3>{packageId}</h3>
+              <ul class={styles.list}>
+                {Object.keys(_package).map(atomId => (
+                  <li>
+                    <button onClick={() => setSelected({ packageId, atomId })}>{atomId}</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div class={styles.panel}>
+        <Show when={'nodes' in selectedAtom() && (selectedAtom() as NetworkAtom)}>
+          {atom => <Network nodes={atom().nodes} edges={self.main.edges} />}
+        </Show>
+      </div>
+      <div class={styles.panel}>
+        <h2>Compilation</h2>
+        <div class={styles.panel__code}>
+          ({compiledGraph().func.toString()})({value2()}, {value()})
+        </div>
+        <h2>Compilation Time</h2>
+        <div>{compiledGraph().time.toFixed(3)}ms</div>
+        <h2>Result</h2>
+        <div>{compiledGraph().func(value2(), value())}</div>
+      </div>
     </div>
   )
 }

@@ -4,8 +4,9 @@
   flex-direction: column;
   border-radius: 5px;
   overflow: hidden;
-  background: rgb(200, 200, 200);
+  background: white;
   border: 1px solid black;
+  color: black;
 }
 
 .ports {

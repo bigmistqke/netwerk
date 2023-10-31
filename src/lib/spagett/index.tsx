@@ -84,7 +84,8 @@ export const Node = function (
     id: string
     position: Vector
     onDrag: (position: Vector) => void
-    style: JSX.CSSProperties
+    style?: JSX.CSSProperties
+    class?: string
   }>,
 ) {
   const graphContext = useGraph()
@@ -130,6 +131,7 @@ export const Node = function (
           transform: `translate(${props.position.x}px, ${props.position.y}px)`,
           ...props.style,
         }}
+        class={props.class}
         onMouseDown={onMouseDown}
       >
         {props.children}
@@ -172,17 +174,16 @@ export function Handle(
   const getPositionFromBounds = () => {
     const _bounds = bounds() || setBounds(ref.getBoundingClientRect())
     return {
-      x: _bounds.x + _bounds.width / 2 - graph.pan.x,
-      y: _bounds.y + _bounds.height / 2 - graph.pan.y,
+      x: _bounds.x + _bounds.width / 2 - graph.pan.x - graph.offset.x,
+      y: _bounds.y + _bounds.height / 2 - graph.pan.y - graph.offset.y,
     }
   }
 
-  onMount(
-    () =>
-      graphToNode?.addHandle(
-        props.id,
-        () => anchor?.()?.() || props.position || getPositionFromBounds(),
-      ),
+  onMount(() =>
+    graphToNode?.addHandle(
+      props.id,
+      () => anchor?.()?.() || props.position || getPositionFromBounds(),
+    ),
   )
 
   const onMouseDown = async (e: MouseEvent) => {
@@ -201,7 +202,10 @@ export function Handle(
     props.onDragStart?.()
 
     await cursor(e, delta => {
-      props.onDrag?.(vector.subtract(position, delta), graphToAnchor.hoveringHandle)
+      props.onDrag?.(
+        vector.subtract(vector.subtract(position, graph.offset), delta),
+        graphToAnchor.hoveringHandle,
+      )
     })
 
     props.onDragEnd?.()
@@ -275,8 +279,8 @@ export function Anchor(props: { position?: Vector; style: JSX.CSSProperties }) {
   const getPositionFromBounds = () => {
     const bounds = ref.getBoundingClientRect()
     return {
-      x: bounds.x + bounds.width / 2 - graph.pan.x,
-      y: bounds.y + bounds.height / 2 - graph.pan.y,
+      x: bounds.x + bounds.width / 2 - graph.pan.x - graph.offset.x,
+      y: bounds.y + bounds.height / 2 - graph.pan.y - graph.offset.y,
     }
   }
 
@@ -335,6 +339,7 @@ const graphContext = createContext<{
   sceneGraph: SceneGraph
   pan: Vector
   zoom: number
+  offset: Vector
 }>()
 const useGraph = () => useContext(graphContext)
 
@@ -353,6 +358,7 @@ export const getHandlePosition = (nodeId: string, handleId: string) => {
 }
 
 export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
+  let svgRef: SVGSVGElement
   const [sceneGraph, setSceneGraph] = createStore<SceneGraph>({})
 
   const [draggingHandle, setDraggingHandle] = createSignal<HandleType | undefined>()
@@ -360,6 +366,7 @@ export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
 
   const [pan, setPan] = createSignal<Vector>({ x: 0, y: 0 })
   const [zoom, setZoom] = createSignal(1)
+  const [offset, setOffset] = createSignal<Vector>({ x: 0, y: 0 })
 
   const addHandle = (nodeId: string, handleId: string, handle: SceneGraph[string][string]) => {
     setSceneGraph(nodeId, { [handleId]: handle })
@@ -400,12 +407,28 @@ export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
     setPan(vector.add(newPan, vector.divide(offset, zoom())))
   }
 
+  const initOffset = () => {
+    const bounds = svgRef!.getBoundingClientRect()
+    setOffset({
+      x: bounds.x,
+      y: bounds.y,
+    })
+  }
+  const observer = new MutationObserver(initOffset)
+  onMount(() => {
+    initOffset()
+    observer.observe(svgRef, { attributes: true, childList: true, subtree: true })
+  })
+
   return (
     <graphContext.Provider
       value={{
         addHandle,
         removeHandle,
         sceneGraph,
+        get offset() {
+          return offset()
+        },
         get pan() {
           return pan()
         },
@@ -433,6 +456,7 @@ export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
 
             ...props.style,
           }}
+          ref={svgRef!}
           class={styles.svg}
           onMouseDown={onMouseDown}
           onWheel={onWheel}
