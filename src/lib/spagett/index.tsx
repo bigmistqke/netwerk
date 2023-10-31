@@ -424,6 +424,8 @@ export function Graph(
   }
 
   const onWheel = (e: WheelEvent) => {
+    /* TODO: properly implement zooming, currently disabled because bit buggy */
+    return
     const newZoom = zoom() + e.deltaY / 100
     if (newZoom > 2 || newZoom < 0.1) return
 
