@@ -1,8 +1,7 @@
-import { createSignal, type Accessor } from 'solid-js'
 import type { Atom, Edge, Func, Nodes } from './types'
 
 type PropsAccessor<T = any> = {
-  [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
+  [TKey in keyof T]: T[TKey] | Node | (() => T[TKey])
 }
 
 type FunctionCache = {
@@ -49,24 +48,23 @@ const resolveProps = <T>(_props: T) => {
 
 class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
   atom: T
-  props: Accessor<PropsAccessor<TProps>>
+  props: PropsAccessor<TProps>
   id = ++uuid.node
   updateProps: (props: Partial<PropsAccessor<TProps>>) => void
   constructor(atom: T, props: PropsAccessor<TProps>) {
     this.atom = atom
-    const [_props, setProps] = createSignal<PropsAccessor<TProps>>(props)
-    this.props = _props
-    this.updateProps = props => setProps(p => ({ ...p, ...props }))
+    this.props = { ...props }
+    this.updateProps = props => (this.props = { ...this.props, ...props })
   }
   private resolveProps() {
     return resolveProps(this.props)
   }
   toIntermediary(cache: CompilationCache) {
-    const props = { ...this.props() }
+    const props = { ...this.props }
     let pure = true
     let self = this as Node
     for (const key in props) {
-      let prop = this.props()[key]!
+      let prop = this.props[key]!
 
       if (typeof prop === 'function') {
         /* a function as entry-point will mark a path as impure */
@@ -145,13 +143,8 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
 class Network {
   nodes: Node[] = []
-  selectedNode: Accessor<Node | undefined>
-  selectNode: (node: Node) => void
-  constructor() {
-    const [selectedNode, setSelectedNode] = createSignal<Node>()
-    this.selectNode = node => setSelectedNode(node)
-    this.selectedNode = selectedNode
-  }
+  selectedNode: Node | undefined = undefined
+  selectNode = (node: Node) => (this.selectedNode = node)
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
     T extends (props: TProps) => any,
@@ -161,7 +154,7 @@ class Network {
     return node
   }
   exec(): any {
-    return this.selectedNode?.()?.exec()
+    return this.selectedNode?.exec()
   }
   toCode() {
     /* !CAUTION! we mutate cache inside toIntermediary !CAUTION! */
@@ -171,7 +164,7 @@ class Network {
       parameter: new Map(),
     }
 
-    const intermediary = this.selectedNode()?.toIntermediary(cache)!
+    const intermediary = this.selectedNode?.toIntermediary(cache)!
 
     const code = intermediaryToCode(intermediary, cache)
 
