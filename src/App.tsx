@@ -183,7 +183,7 @@ const App: Component = () => {
     { func: () => {}, time: 0 },
   )
 
-  const params = {
+  const parameters = {
     get a() {
       return value2()
     },
@@ -230,12 +230,15 @@ const App: Component = () => {
         <div
           class={styles.panel__code}
           innerHTML={`(${compiledGraph().func.toString()})
-(${JSON.stringify(ctx, null, 2)}), ${JSON.stringify(params, null, 2)}`}
+({
+  parameters: ${JSON.stringify(parameters, null, 2)}, 
+  ctx: ${JSON.stringify(ctx, null, 2)}
+})`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func(ctx, params)}</div>
+        <div>{compiledGraph().func({ ctx, parameters })}</div>
       </div>
     </div>
   )

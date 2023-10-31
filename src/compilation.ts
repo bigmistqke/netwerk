@@ -209,7 +209,7 @@ class Network {
       .map(v => `\n  ${v}`)
       .join('')
 
-    return `(ctx, parameters) => {${body}}`
+    return `({parameters, ctx}) => {${body}}`
   }
 }
 
