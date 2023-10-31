@@ -75,6 +75,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
         continue
       }
 
+      /* props with type parameter are marked with a symbol */
       if (isParameter(prop)) {
         props[key] = prop
         pure = false
@@ -284,7 +285,6 @@ const intermediaryToCode = (
 export const compileGraph = (graph: Atom) => {
   let start = performance.now()
   const code = 'nodes' in graph && createIntermediaryFromGraph(graph).toCode()
-  console.log('code is ', code)
   return {
     func: code ? eval(code) : graph.func,
     time: performance.now() - start,

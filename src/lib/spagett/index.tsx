@@ -158,6 +158,7 @@ export function Handle(
     onDrop?: (handle: HandleType) => void
     style?: JSX.CSSProperties
     position?: Vector
+    class?: string
   }>,
 ) {
   const graphToNode = useGraphToNode()
@@ -250,6 +251,7 @@ export function Handle(
         position: 'relative',
         ...props.style,
       }}
+      class={props.class}
     >
       <handleToAnchorContext.Provider
         value={{
@@ -266,7 +268,11 @@ export function Handle(
 
 /* ANCHOR */
 
-export function Anchor(props: { position?: Vector; style: JSX.CSSProperties }) {
+export function Anchor(props: {
+  children: JSX.Element
+  position?: Vector
+  style: JSX.CSSProperties
+}) {
   const graphToNode = useGraphToNode()
   const handleToAnchor = useHandleToAnchor()
   const graph = useGraph()
@@ -286,7 +292,11 @@ export function Anchor(props: { position?: Vector; style: JSX.CSSProperties }) {
 
   onMount(() => handleToAnchor.addAnchor(() => props.position || getPositionFromBounds()))
 
-  return <div ref={ref!} style={{ ...props.style, position: 'absolute' }} />
+  return (
+    <div ref={ref!} style={{ ...props.style, position: 'absolute' }}>
+      {props.children}
+    </div>
+  )
 }
 
 /* EDGE */
@@ -357,7 +367,14 @@ export const getHandlePosition = (nodeId: string, handleId: string) => {
   return graphContext?.sceneGraph[nodeId]?.[handleId]?.position
 }
 
-export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
+export function Graph(
+  props: ParentProps<{
+    style?: JSX.CSSProperties
+    onPanStart?: (pan: Vector) => void
+    onPanEnd?: (pan: Vector) => void
+    class?: string
+  }>,
+) {
   let svgRef: SVGSVGElement
   const [sceneGraph, setSceneGraph] = createStore<SceneGraph>({})
 
@@ -375,15 +392,17 @@ export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
   const removeHandle = (nodeId: string, handleId: string) =>
     setSceneGraph(nodeId, handleId, undefined)
 
-  const onMouseDown = (e: MouseEvent) => {
+  const onMouseDown = async (e: MouseEvent) => {
     if (e.currentTarget !== e.target) return
     const start = { ...pan() }
-    cursor(e, delta => {
+    props.onPanStart?.(pan())
+    await cursor(e, delta => {
       setPan({
         x: start.x - delta.x,
         y: start.y - delta.y,
       })
     })
+    props.onPanEnd?.(pan())
   }
 
   const onWheel = (e: WheelEvent) => {
@@ -453,11 +472,10 @@ export function Graph(props: ParentProps<{ style: JSX.CSSProperties }>) {
           style={{
             width: '100%',
             height: '100%',
-
             ...props.style,
           }}
           ref={svgRef!}
-          class={styles.svg}
+          class={clsx(styles.svg, props.class)}
           onMouseDown={onMouseDown}
           onWheel={onWheel}
           overflow="visible"

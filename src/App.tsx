@@ -201,6 +201,15 @@ const App: Component = () => {
     { func: () => {}, time: 0 },
   )
 
+  const params = {
+    get a() {
+      return value2()
+    },
+    get b() {
+      return value()
+    },
+  }
+
   return (
     <div class={styles.panels}>
       <div class={styles.panel}>
@@ -229,12 +238,12 @@ const App: Component = () => {
         <h2>Compilation</h2>
         <div
           class={styles.panel__code}
-          innerHTML={`(${compiledGraph().func.toString()})({a: ${value2()}, b: ${value()}})`}
+          innerHTML={`(${compiledGraph().func.toString()})(${JSON.stringify(params)})`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func({ a: value2(), b: value() })}</div>
+        <div>{compiledGraph().func(params)}</div>
       </div>
     </div>
   )

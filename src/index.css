@@ -11,16 +11,41 @@
   --margin: 6px;
   --mono: mono;
   --font: geist;
+  --color-back: white;
+  --color-front: black;
 }
 
 body {
   margin: 0;
-  background: white;
+  font-size: 11pt;
+  background: var(--color-back);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+}
+
+body.panning * {
+  user-select: none;
+  cursor: crosshair;
+}
+
+*::selection {
+  background: var(--color-front);
+  color: var(--color-back);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-back: black;
+    --color-front: white;
+  }
+}
+
+* {
+  font-family: var(--font);
+  color: var(--color-front);
 }
 
 code {
@@ -30,9 +55,24 @@ code {
 h1,
 h2,
 h3,
-h4 {
+h4,
+ul,
+li,
+button {
   all: unset;
 }
-ul {
-  all: unset;
+
+button {
+  padding: 5px;
+
+  background: transparent;
+  border: 1px solid var(--color-front);
+  border-radius: 5px;
+  color: var(--color-front);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-front);
+    color: var(--color-back);
+  }
 }

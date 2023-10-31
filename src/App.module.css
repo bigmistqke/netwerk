@@ -12,6 +12,7 @@
   grid-template-rows: auto 1fr;
   border-right: 1px solid lightgrey;
   gap: var(--margin);
+  overflow: hidden;
 }
 .panel:not(:has(.panel)) > div {
   padding: var(--margin);

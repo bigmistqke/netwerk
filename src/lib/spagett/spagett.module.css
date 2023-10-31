@@ -7,7 +7,7 @@ foreignObject {
 foreignObject > * {
   pointer-events: all;
   user-select: none;
-  contain: content;
+  /* contain: content; */
 }
 
 .line {
@@ -19,5 +19,5 @@ body {
 }
 
 .svg {
-  contain: content;
+  /* contain: content; */
 }

@@ -5,6 +5,7 @@ import type { Vector } from '@lib/spagett/types'
 import { createStore } from 'solid-js/store'
 import type { Edge as EdgeType, Handle as HandleType, Nodes } from 'src/types'
 
+import clsx from 'clsx'
 import styles from './Network.module.css'
 
 const Step = (props: { start: Vector; end: Vector }) => {
@@ -22,7 +23,7 @@ const Step = (props: { start: Vector; end: Vector }) => {
   }
   return (
     <>
-      <path stroke="black" fill="transparent" d={d()} />
+      <path stroke="var(--color-front)" fill="transparent" d={d()} />
       <Html.Portal>
         <div
           style={{ position: 'absolute', transform: `translate(${middle().x}px, ${middle().y}px)` }}
@@ -66,7 +67,12 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
     validateDrop(start, end) && setEdges(edges => [...edges, { start, end }])
 
   return (
-    <Graph style={{ height: '100%', width: '100%' }}>
+    <Graph
+      /* added timeout so it would reset selected texts */
+      onPanStart={() => setTimeout(() => document.body.classList.add('panning'), 0)}
+      onPanEnd={() => document.body.classList.remove('panning')}
+      class={styles.graph}
+    >
       <Html.Destination>
         <For each={edges}>
           {edge => (
@@ -84,11 +90,8 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
               id={nodeId}
               onDrag={position => setNodes(nodeId, { position })}
               class={styles.node}
-              style={{
-                color: 'black',
-              }}
             >
-              <div style={{ display: 'flex', gap: '5px' }}>
+              <div class={styles.handles}>
                 <Index each={Object.entries(node.parameters)}>
                   {handleEntry => {
                     const [handleId, value] = handleEntry()
@@ -99,27 +102,31 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
                         }
                         onDragEnd={() => setTemporaryEdges(undefined)}
                         onDrop={handle => onDrop(handle, { nodeId, handleId: handleId })}
+                        class={styles.handle}
                         id={handleId}
                       >
-                        <Anchor style={{ top: '0px', left: '50%' }} />
-                        {handleId}
-                        {handleEntry()[1].value}
+                        <Anchor
+                          style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+                        >
+                          {handleId}
+                        </Anchor>
                       </Handle>
                     )
                   }}
                 </Index>
               </div>
-              {nodeId}
-              <Handle
-                onDrag={(position, hoveringHandle) =>
-                  onDragHandle({ nodeId, handleId: 'output' }, position, hoveringHandle)
-                }
-                onDragEnd={() => setTemporaryEdges(undefined)}
-                onDrop={handle => onDrop(handle, { nodeId, handleId: 'output' })}
-                id="output"
-              >
-                output
-              </Handle>
+              <div class={styles.nodeName}>{nodeId}</div>
+              <div class={clsx(styles.handles, styles.out)}>
+                <Handle
+                  onDrag={(position, hoveringHandle) =>
+                    onDragHandle({ nodeId, handleId: 'output' }, position, hoveringHandle)
+                  }
+                  onDragEnd={() => setTemporaryEdges(undefined)}
+                  onDrop={handle => onDrop(handle, { nodeId, handleId: 'output' })}
+                  id="output"
+                  class={styles.handle}
+                />
+              </div>
             </Node>
           )}
         </For>
