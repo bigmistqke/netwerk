@@ -93,7 +93,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           node_cache.visited = true
         }
 
-        const compilation = (prop as Node).toIntermediary(cache)
+        const intermediary = (prop as Node).toIntermediary(cache)
 
         if (!node_cache) {
           /* 
@@ -102,17 +102,17 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           cache.node.set(prop as Node, {
             id: (uuid.nodeCache++).toString(),
             visited: false,
-            intermediary: compilation,
+            intermediary,
             used: false,
           })
         }
 
-        if (compilation.pure) {
+        if (intermediary.pure) {
           /* 
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
-          props[key] = eval(`${(prop as Node).atom.toString()}`)(compilation.props)
+          props[key] = eval(`${(prop as Node).atom.toString()}`)(intermediary.props)
           continue
         }
 
@@ -120,7 +120,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           if it was impure, we store the intermediary result
         */
         pure = false
-        props[key] = compilation
+        props[key] = intermediary
         continue
       }
 
@@ -165,7 +165,6 @@ class Network {
     }
 
     const intermediary = this.selectedNode?.toIntermediary(cache)!
-
     const code = intermediaryToCode(intermediary, cache)
 
     const atomsToCode = Array.from(cache.atom.entries())
@@ -256,14 +255,14 @@ const intermediaryToCode = (
         string += ','
         continue
       }
-      const resolvedProps = intermediaryToCode(prop, cache)
+      const code = intermediaryToCode(prop, cache)
       if (node?.visited) {
         node.used = true
         string += `__node__${node.id}`
         string += ','
         continue
       }
-      string += resolvedProps
+      string += code
       string += ','
       continue
     }
