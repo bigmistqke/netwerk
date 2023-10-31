@@ -220,10 +220,17 @@ const App: Component = () => {
     } as NetworkAtom,
   })
   ctx.self = self
-  const compiledGraph = createMemo<Func>(prev => {
-    const result = compileGraph(self.main)
-    return result || prev || (() => {})
-  })
+  const compiledGraph = createMemo<Func>(
+    prev => {
+      try {
+        const result = compileGraph(self.main)
+        return result
+      } catch {
+        return prev
+      }
+    },
+    () => {},
+  )
   createEffect(() => console.log(compiledGraph()(value2(), value())))
 
   return (

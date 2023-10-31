@@ -266,18 +266,14 @@ const intermediaryToCode = (
   return string
 }
 
-export const compileGraph = <T extends (...args: any[]) => any>(graph: {
+export const compileGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
-  try {
-    console.time('compilation')
-    const code = createIntermediaryFromGraph(graph).toCode()
-    const result = eval(code)
-    console.timeEnd('compilation')
-    return result as T
-  } catch {
-    return undefined
-  }
+  console.time('compilation')
+  const code = createIntermediaryFromGraph(graph).toCode()
+  const result = eval(code)
+  console.timeEnd('compilation')
+  return result as Func
 }
