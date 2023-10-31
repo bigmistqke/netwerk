@@ -12,6 +12,7 @@ import type { Atom, Ctx, Func, NetworkAtom } from './types'
 import clsx from 'clsx'
 import styles from './App.module.css'
 import { Toggle } from './components/Switch'
+import { isDarkMode } from './utils/isDarkMode'
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ packageId: keyof Ctx; atomId: string }>({
@@ -154,11 +155,11 @@ const App: Component = () => {
       func: (() => {}) as Func,
       parameters: {
         a: {
-          value: 0,
+          value: value,
           type: 'number',
         },
         b: {
-          value: 0,
+          value: value2,
           type: 'number',
         },
       },
@@ -185,21 +186,17 @@ const App: Component = () => {
     { func: () => {}, time: 0 },
   )
 
-  const parameters = {
-    get a() {
-      return value2()
-    },
-    get b() {
-      return value()
-    },
-  }
+  const resolveParameters = () =>
+    selectedAtom() &&
+    Object.fromEntries(
+      Object.entries(selectedAtom()!.parameters).map(([id, { value }]) => [
+        id,
+        typeof value === 'function' ? value() : value,
+      ]),
+    )
 
   const castToNetworkAtomIfPossible = (atom: Atom | undefined) =>
     atom && 'nodes' in atom && (atom as NetworkAtom)
-
-  console.log('matchMedia', window.matchMedia?.('prefers-color-scheme: dark'))
-  const isDarkMode = () =>
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
 
   return (
     <div class={styles.panels}>
@@ -252,13 +249,17 @@ const App: Component = () => {
         <div
           class={styles.panel__code}
           innerHTML={`(${compiledGraph().func.toString()})
-({ "parameters": ${JSON.stringify(parameters, null, 2)}, "ctx": ${JSON.stringify(ctx, null, 2)}
+({ "parameters": ${JSON.stringify(resolveParameters(), null, 2)}, "ctx": ${JSON.stringify(
+            ctx,
+            null,
+            2,
+          )}
 })`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func({ ctx, parameters })}</div>
+        <div>{compiledGraph().func({ ctx, parameters: resolveParameters() })}</div>
       </div>
     </div>
   )
