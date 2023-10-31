@@ -5,22 +5,20 @@ type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
 }
 
-type CompilationCache = {
-  atom: Map<Func, FunctionCache>
-  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
-  parameter: Map<() => any, string>
-}
-
 type FunctionCache = {
   id: string
   used: boolean
 }
-
 type NodeCache = {
   id: string
   visited: boolean
   intermediary: any
   used: boolean
+}
+type CompilationCache = {
+  atom: Map<Func, FunctionCache>
+  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
+  parameter: Map<() => any, string>
 }
 
 const uuid_reset = {
