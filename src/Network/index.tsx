@@ -110,10 +110,9 @@ export default function Network(props: {
                         id={handleId}
                       >
                         <Anchor
-                          style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-                        >
-                          {handleId}
-                        </Anchor>
+                          style={{ top: '0%', left: '50%', transform: 'translate(-50%, 0%)' }}
+                        />
+                        <span>{handleId}</span>
                       </Handle>
                     )
                   }}
@@ -129,7 +128,11 @@ export default function Network(props: {
                   onDrop={handle => onDrop(handle, { nodeId, handleId: 'output' })}
                   id="output"
                   class={styles.handle}
-                />
+                >
+                  <Anchor
+                    style={{ bottom: '0px', left: '50%', transform: 'translate(-50%, 0%)' }}
+                  />
+                </Handle>
               </div>
             </Node>
           )}
@@ -137,7 +140,7 @@ export default function Network(props: {
       </Html>
       <Show when={temporaryEdges()}>
         {edge => (
-          <Edge start={edge().start} end={edge().end}>
+          <Edge start={edge().start} end={edge().end} class={styles.edge}>
             {(start, end) => <Step start={start} end={end} />}
           </Edge>
         )}

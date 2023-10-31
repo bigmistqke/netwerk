@@ -86,16 +86,17 @@
 .handle {
   display: flex;
   align-items: center;
-  justify-content: top;
+  justify-content: center;
   width: 14px;
   height: 14px;
 
   color: var(--color-front);
+  cursor: pointer;
   font-size: 6pt;
   border-radius: 50%;
   border: 1px solid var(--color-grey-dark);
   background: var(--color-back);
-  cursor: pointer;
+  z-index: 10;
 }
 
 .handles {
@@ -119,4 +120,8 @@
 .nodeName {
   padding: 5px;
   font-size: 10pt;
+}
+
+.edge {
+  z-index: -1;
 }
