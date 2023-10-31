@@ -16,7 +16,6 @@ const handleClick = (e: MouseEvent, props: ButtonProps) => {
     e.preventDefault()
   }
   if (props.stopPropagation) {
-    console.log('stopPropagation!!!')
     e.stopPropagation()
   }
   props.onClick()
@@ -50,17 +49,21 @@ export const LabelButton = (props: ParentProps<ButtonProps>) => {
 }
 
 export const IconButton = (_props: ButtonProps & { icon: JSX.Element }) => {
-  const [props, rest] = splitProps(_props, ['icon', 'class'])
+  const [props, rest] = splitProps(_props, ['icon', 'class', 'onClick'])
   return (
-    <Button class={clsx(props.class, styles.iconButton)} {...rest}>
+    <button
+      class={clsx(props.class, styles.iconButton)}
+      aria-label={rest.label}
+      onClick={e => handleClick(e, _props)}
+      {...rest}
+    >
       {props.icon}
-    </Button>
+    </button>
   )
 }
 
 export const Button = (_props: ParentProps<ButtonProps>) => {
   const [props, rest] = splitProps(_props, ['children', 'label', 'class', 'onClick'])
-
   return (
     <button
       class={clsx(props.class, styles.button, styles.defaultButton)}
