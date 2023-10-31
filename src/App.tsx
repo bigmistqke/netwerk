@@ -1,18 +1,31 @@
 import { AiFillTool } from 'solid-icons/ai'
 import { Component, Show, batch, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
+import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
 import { compileGraph, getAtomFromContext } from './compilation'
 import { IconButton } from './components/IconButton'
 import { LabelButton } from './components/LabelButton'
 import { ctx } from './ctx'
-import type { Atom, Ctx, Func, NetworkAtom } from './types'
+import type { Atom, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
 
 import clsx from 'clsx'
 import styles from './App.module.css'
 import { Toggle } from './components/Switch'
 import { isDarkMode } from './utils/isDarkMode'
+
+const createNetworkNode = (ctx: Ctx, path: AtomPath) => ({
+  [zeptoid()]: {
+    atom: path,
+    parameters: getAtomFromContext(ctx, path)?.parameters,
+    /* TODO: add proper positioning of node */
+    position: {
+      x: Math.random() * 400,
+      y: Math.random() * 300,
+    },
+  },
+})
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ packageId: keyof Ctx; atomId: string }>({
@@ -30,7 +43,7 @@ const App: Component = () => {
     })
   }, 1000)
 
-  const [self, setSelf] = createStore({
+  const [self, setSelf] = createStore<Package>({
     main: {
       nodes: {
         sum: {
@@ -211,7 +224,13 @@ const App: Component = () => {
                   <li>
                     <LabelButton
                       label={atomId}
-                      onClick={() => console.log('TODO: add atom to graph')}
+                      onClick={() =>
+                        setSelf(
+                          selected().atomId,
+                          'nodes',
+                          createNetworkNode(ctx, { packageId, atomId }),
+                        )
+                      }
                     >
                       <IconButton
                         icon={<AiFillTool />}
@@ -241,7 +260,13 @@ const App: Component = () => {
           }}
         />
         <Show when={castToNetworkAtomIfPossible(selectedAtom())}>
-          {atom => <Network {...atom()} />}
+          {atom => (
+            <Network
+              nodes={atom().nodes}
+              edges={atom().edges}
+              selectedNodeId={atom().selectedNodeId}
+            />
+          )}
         </Show>
       </div>
       <div class={styles.panel}>

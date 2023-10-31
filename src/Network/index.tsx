@@ -99,7 +99,7 @@ export default function Network(props: {
               <div class={styles.handles}>
                 <Index each={Object.entries(node.parameters)}>
                   {handleEntry => {
-                    const [handleId, value] = handleEntry()
+                    const [handleId, handle] = handleEntry()
                     return (
                       <Handle
                         onMove={(position, hoveringHandle) =>
@@ -113,15 +113,13 @@ export default function Network(props: {
                         <Anchor
                           style={{ top: '0%', left: '50%', transform: 'translate(-50%, 0%)' }}
                         />
-                        <span>
-                          {handleId} {value.type === 'parameter' ? value.value : value.value}
-                        </span>
+                        <span>{handleId}</span>
                       </Handle>
                     )
                   }}
                 </Index>
               </div>
-              <div class={styles.nodeName}>{nodeId}</div>
+              <div class={styles.nodeName}>{node.atom?.atomId}</div>
               <div class={clsx(styles.handles, styles.out)}>
                 <Handle
                   onMove={(position, hoveringHandle) =>
