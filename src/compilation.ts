@@ -31,18 +31,18 @@ let uuid = { ...uuid_reset }
 const $PARAM = Symbol('parameter')
 const isParameter = (value: any) => typeof value === 'object' && $PARAM in value
 
-export const getAtomFromContext = (context: Ctx, path: AtomPath): Atom | undefined => {
-  const result = context[path.packageId]?.[path.atomId]
+export const getAtomFromContext = (ctx: Ctx, path: AtomPath): Atom | undefined => {
+  const result = ctx[path.packageId]?.[path.atomId]
   if (!result) {
-    console.error('getAtomFromContext is undefined:', context, path)
+    console.error('getAtomFromContext is undefined:', ctx, path)
   }
   return result
 }
 
-export const getFuncFromContext = (context: Ctx, path: AtomPath): Func | undefined => {
-  const result = getAtomFromContext(context, path)?.func
+export const getFuncFromContext = (ctx: Ctx, path: AtomPath): Func | undefined => {
+  const result = getAtomFromContext(ctx, path)?.func
   if (!result) {
-    console.error('getFuncFromContext is undefined:', context, path)
+    console.error('getFuncFromContext is undefined:', ctx, path)
   }
   return result
 }
@@ -82,7 +82,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   private resolveProps() {
     return resolveProps(this.props)
   }
-  toIntermediary(cache: CompilationCache) {
+  toIntermediary({ ctx, cache }: { ctx: Ctx; cache: CompilationCache }) {
     const props = { ...this.props }
     let pure = true
     let self = this as Node
@@ -116,7 +116,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           node_cache.visited = true
         }
 
-        const intermediary = (prop as Node).toIntermediary(cache)
+        const intermediary = (prop as Node).toIntermediary({ cache, ctx })
 
         if (!node_cache) {
           /* 
@@ -135,7 +135,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
-          props[key] = eval(`${(prop as Node).atom.toString()}`)(intermediary.props)
+          props[key] = eval(`${(prop as Node).atom.toString()}`)({ props: intermediary.props, ctx })
           continue
         }
 
@@ -180,7 +180,7 @@ class Network {
   exec(): any {
     return this.selectedNode?.exec()
   }
-  toCode(context: Ctx) {
+  toCode(ctx: Ctx) {
     /* !CAUTION! we mutate cache inside toIntermediary !CAUTION! */
     const cache: CompilationCache = {
       atom: new Map(),
@@ -188,8 +188,8 @@ class Network {
       parameter: new Map(),
     }
 
-    const intermediary = this.selectedNode?.toIntermediary(cache)!
-    const code = intermediaryToCode(context, intermediary, cache)
+    const intermediary = this.selectedNode?.toIntermediary({ cache, ctx })!
+    const code = intermediaryToCode(ctx, intermediary, cache)
 
     /* const atomsToCode = Array.from(cache.atom.entries())
       .filter(([, { used }]) => used)
@@ -199,7 +199,7 @@ class Network {
       .filter(node => node.used)
       .map(
         node =>
-          `const __node__${node.id} = ${intermediaryToCode(context, node.intermediary, cache).join(
+          `const __node__${node.id} = ${intermediaryToCode(ctx, node.intermediary, cache).join(
             '',
           )};`,
       )
@@ -209,12 +209,12 @@ class Network {
       .map(v => `\n  ${v}`)
       .join('')
 
-    return `({parameters, ctx}) => {${body}}`
+    return `({props, ctx}) => {${body}}`
   }
 }
 
 const createIntermediaryFromGraph = (
-  context: Ctx,
+  ctx: Ctx,
   graph: {
     nodes: Nodes
     edges: Edge[]
@@ -226,7 +226,7 @@ const createIntermediaryFromGraph = (
   const network = new Network()
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes).map(([nodeId, node]) => {
-      const func = getFuncFromContext(context, node.atom)
+      const func = getFuncFromContext(ctx, node.atom)
       if (!func) throw 'could not find func'
       return [
         nodeId,
@@ -260,7 +260,7 @@ const createIntermediaryFromGraph = (
 }
 
 const intermediaryToCode = (
-  context: Ctx,
+  ctx: Ctx,
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
 ): [func: string, arg: string] => {
@@ -275,7 +275,7 @@ const intermediaryToCode = (
   // funcString += ')'
 
   let argString = ''
-  argString += '({'
+  argString += '({props: {'
   const entries = Object.entries(intermediary.props)
   for (const entry of entries) {
     const [propId, prop] = entry
@@ -287,7 +287,7 @@ const intermediaryToCode = (
 
     if (typeof prop === 'object') {
       if (prop.type === 'parameter') {
-        argString += 'parameters.'
+        argString += 'props.'
         argString += prop.value
         argString += ','
         continue
@@ -308,7 +308,7 @@ const intermediaryToCode = (
         
         currently we are dynamically linking, without any typechecks.
       */
-      const [callback, arg] = intermediaryToCode(context, prop, cache)
+      const [callback, arg] = intermediaryToCode(ctx, prop, cache)
       if (node?.visited) {
         node.used = true
         argString += `__node__${node.id}`
@@ -324,7 +324,7 @@ const intermediaryToCode = (
     argString += prop
     argString += ','
   }
-  argString += '})'
+  argString += '}, ctx })'
 
   return [funcString, argString]
 }
@@ -333,9 +333,9 @@ const intermediaryToCode = (
  * compiles NetworkAtom to a single function. simply returns CodeAtom's func-property.
  * @throws `!WARNING!` `!CAN THROW!` `!WARNING!`
  */
-export const compileGraph = (context: Ctx, graph: Atom) => {
+export const compileGraph = (ctx: Ctx, graph: Atom) => {
   let start = performance.now()
-  const code = 'nodes' in graph && createIntermediaryFromGraph(context, graph).toCode(context)
+  const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph).toCode(ctx)
   console.info('code is ', code)
   return {
     func: code ? eval(code) : graph.func,

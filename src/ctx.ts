@@ -2,21 +2,21 @@ import { Package } from './types'
 
 const std = {
   add: {
-    func: args => args.a + args.b,
+    func: ({ props }) => props.a + props.b,
     returnType: 'number',
     parameters: {
       a: {
         type: 'number',
-        value: 0,
+        value: 1,
       },
       b: {
         type: 'number',
-        value: 0,
+        value: 1,
       },
     },
   },
   multiply: {
-    func: args => args.a * args.b,
+    func: ({ props }) => props.a * props.b,
     returnType: 'number',
     parameters: {
       a: {

@@ -153,7 +153,7 @@ const App: Component = () => {
     if (func) setSelf(selected().atomId, 'func', () => func)
   })
 
-  const resolveParameters = () =>
+  const resolveProps = () =>
     selectedAtom() &&
     Object.fromEntries(
       Object.entries(selectedAtom()!.parameters).map(([id, { value }]) => [
@@ -269,17 +269,13 @@ const App: Component = () => {
         <div
           class={styles.panel__code}
           innerHTML={`(${compiledGraph().func.toString()})
-({ "parameters": ${JSON.stringify(resolveParameters(), null, 2)}, "ctx": ${JSON.stringify(
-            ctx,
-            null,
-            2,
-          )}
+({ "props": ${JSON.stringify(resolveProps(), null, 2)}, "ctx": ${JSON.stringify(ctx, null, 2)}
 })`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func({ ctx, parameters: resolveParameters() })}</div>
+        <div>{compiledGraph().func({ ctx, props: resolveProps() })}</div>
       </div>
     </div>
   )
