@@ -1,12 +1,12 @@
 import { AiFillTool } from 'solid-icons/ai'
-import { Component, Show, batch, createEffect, createMemo, createSignal } from 'solid-js'
+import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
 import { compileGraph, getAtomFromContext } from './compilation'
 import { ctx } from './ctx'
-import type { Atom, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
+import type { Atom, AtomNode, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
 
 import clsx from 'clsx'
 import styles from './App.module.css'
@@ -14,10 +14,11 @@ import { Button, IconButton, LabelButton } from './components/Button'
 import { Toggle } from './components/Switch'
 import { isDarkMode } from './utils/isDarkMode'
 
-const createNetworkNode = (ctx: Ctx, path: AtomPath) => ({
+const createNetworkNode = (ctx: Ctx, path: AtomPath): Record<string, AtomNode> => ({
   [zeptoid()]: {
+    type: 'atom',
     atom: path,
-    parameters: getAtomFromContext(ctx, path)?.parameters,
+    props: getAtomFromContext(ctx, path)!.props,
     /* TODO: add proper positioning of node */
     position: {
       x: Math.random() * 400,
@@ -32,102 +33,69 @@ const App: Component = () => {
     atomId: 'main',
   })
 
-  const [value, setValue] = createSignal(2)
-  const [value2, setValue2] = createSignal(2)
-
-  setTimeout(() => {
-    batch(() => {
-      setValue(100)
-      setValue2(200)
-    })
-  }, 1000)
-
   const [self, setSelf] = createStore<Package>({
     main: {
       nodes: {
         sum: {
+          type: 'atom',
           atom: {
             packageId: 'std',
             atomId: 'add',
           },
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'parameter',
-              value: 'a',
-            },
+          props: {
+            ...ctx.std.add.props,
           },
           position: {
             x: 100,
+            y: 100,
+          },
+        },
+        sum2: {
+          type: 'atom',
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
+          props: {
+            ...ctx.std.add.props,
+          },
+          position: {
+            x: 300,
+            y: 100,
+          },
+        },
+        props: {
+          type: 'props',
+          position: {
+            x: 300,
             y: 100,
           },
         },
       },
       edges: [
-        // /* {
-        //   start: { nodeId: 'sum', handleId: 'output' },
-        //   end: { nodeId: 'sum3', handleId: 'a' },
-        // },
-        // {
-        //   start: { nodeId: 'sum3', handleId: 'output' },
-        //   end: { nodeId: 'multiply', handleId: 'a' },
-        // },
-        // {
-        //   start: { nodeId: 'sum2', handleId: 'output' },
-        //   end: { nodeId: 'sum', handleId: 'b' },
-        // }, */
-        // /* {
-        //   start: { nodeId: 'multiply3', handleId: 'output' },
-        //   end: { nodeId: 'sum2', handleId: 'a' },
-        // }, */
+        {
+          start: { nodeId: 'sum2', handleId: 'b', type: 'input' },
+          end: { nodeId: 'props', handleId: 'b', type: 'prop' },
+        },
+        {
+          start: { nodeId: 'sum', handleId: 'a', type: 'input' },
+          end: { nodeId: 'props', handleId: 'a', type: 'prop' },
+        },
       ],
       func: (() => {}) as Func,
-      parameters: {
+      props: {
         a: {
-          value: value,
+          value: 0,
           type: 'number',
         },
         b: {
-          value: value2,
+          value: 1,
           type: 'number',
         },
       },
       returnType: 'number',
       selectedNodeId: 'sum',
-    } as NetworkAtom,
-    second: {
-      nodes: {
-        sum: {
-          atom: {
-            packageId: 'std',
-            atomId: 'add',
-          },
-          func: ctx.std.add,
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'parameter',
-              value: 'a',
-            },
-          },
-          position: {
-            x: 100,
-            y: 100,
-          },
-        },
-      },
-      edges: [],
-      func: ctx.std.add.func,
-      parameters: {
-        ...ctx.std.add.parameters,
-        a: {
-          type: 'parameter',
-          value: 'a',
-        },
-      },
-      returnType: 'number',
-      selectedNodeId: 'sum',
-    } as NetworkAtom,
+    },
   })
   ctx.self = self
 
@@ -156,7 +124,7 @@ const App: Component = () => {
   const resolveProps = () =>
     selectedAtom() &&
     Object.fromEntries(
-      Object.entries(selectedAtom()!.parameters).map(([id, { value }]) => [
+      Object.entries(selectedAtom()!.props).map(([id, { value }]) => [
         id,
         typeof value === 'function' ? value() : value,
       ]),
@@ -170,17 +138,14 @@ const App: Component = () => {
     setSelf('atom' + atomId++, {
       nodes: {
         sum: {
+          type: 'atom',
           atom: {
             packageId: 'std',
             atomId: 'add',
           },
           func: ctx.std.add,
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'parameter',
-              value: 'a',
-            },
+          props: {
+            ...ctx.std.add.props,
           },
           position: {
             x: 100,
@@ -190,7 +155,16 @@ const App: Component = () => {
       },
       edges: [],
       func: (() => {}) as Func,
-      parameters: {},
+      props: {
+        a: {
+          value: 0,
+          type: 'number',
+        },
+        b: {
+          value: 0,
+          type: 'number',
+        },
+      },
       returnType: 'number',
       selectedNodeId: 'sum',
     } as NetworkAtom)
@@ -255,8 +229,10 @@ const App: Component = () => {
         <Show when={castToNetworkAtomIfPossible(selectedAtom())}>
           {atom => (
             <Network
+              atomId={selected().atomId}
               nodes={atom().nodes}
               edges={atom().edges}
+              props={atom().props}
               setNodes={(...args) => setSelf(selected().atomId, 'nodes', ...args)}
               setEdges={(...args) => setSelf(selected().atomId, 'edges', ...args)}
               selectedNodeId={atom().selectedNodeId}

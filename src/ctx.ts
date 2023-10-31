@@ -4,7 +4,7 @@ const std = {
   add: {
     func: ({ props }) => props.a + props.b,
     returnType: 'number',
-    parameters: {
+    props: {
       a: {
         type: 'number',
         value: 1,
@@ -18,7 +18,7 @@ const std = {
   multiply: {
     func: ({ props }) => props.a * props.b,
     returnType: 'number',
-    parameters: {
+    props: {
       a: {
         type: 'number',
         value: 1,

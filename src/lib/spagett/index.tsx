@@ -170,6 +170,7 @@ export function Handle(
     style?: JSX.CSSProperties
     position?: Vector
     class?: string
+    type: string
   }>,
 ) {
   const graphToNode = useGraphToNode()
@@ -209,6 +210,7 @@ export function Handle(
     graphToAnchor.setDraggingHandle({
       handleId: props.id,
       nodeId: graphToNode.id,
+      type: props.type,
     })
 
     props.onMoveStart?.()
@@ -238,6 +240,7 @@ export function Handle(
     graphToAnchor.setHoveringHandle({
       handleId: props.id,
       nodeId: graphToNode.id,
+      type: props.type,
     })
   }
 
@@ -316,7 +319,7 @@ export const Edge = (props: {
   start: { handleId: string; nodeId: string } | Vector
   end: { handleId: string; nodeId: string } | Vector
   children?: (start: Vector, end: Vector) => JSX.Element
-  class: string
+  class?: string
 }) => {
   const graphContext = useGraph()
 

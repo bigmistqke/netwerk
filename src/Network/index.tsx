@@ -1,14 +1,21 @@
-import { For, Index, Show, createSignal } from 'solid-js'
+import { ComponentProps, For, Index, Match, Show, Switch, createSignal, splitProps } from 'solid-js'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
-import type { Edge as EdgeType, Handle as HandleType, Nodes } from 'src/types'
+import type {
+  Atom,
+  AtomNode as AtomNodeType,
+  Edge as EdgeType,
+  Handle as HandleType,
+  NetworkAtom,
+} from 'src/types'
 
 import clsx from 'clsx'
 import { SetStoreFunction } from 'solid-js/store'
 import styles from './Network.module.css'
 
-const Step = (props: { start: Vector; end: Vector }) => {
+const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) => {
+  const [props, rest] = splitProps(_props, ['start', 'end'])
   const middle = () => ({
     x: props.start.x - (props.start.x - props.end.x) / 2,
     y: props.start.y - (props.start.y - props.end.y) / 2,
@@ -23,7 +30,7 @@ const Step = (props: { start: Vector; end: Vector }) => {
   }
   return (
     <>
-      <path stroke="var(--color-front)" fill="transparent" d={d()} />
+      <path stroke="var(--color-front)" fill="transparent" d={d()} {...rest} />
       <Html.Portal>
         <div
           style={{ position: 'absolute', transform: `translate(${middle().x}px, ${middle().y}px)` }}
@@ -33,15 +40,128 @@ const Step = (props: { start: Vector; end: Vector }) => {
   )
 }
 
+const PropsNode = (props: {
+  atomId: string
+  nodeId: string
+  onDragHandle: (
+    handle: HandleType,
+    position: Vector,
+    hoveringHandle: HandleType | undefined,
+  ) => void
+  props: Atom['props']
+  setTemporaryEdges: (edge: EdgeType | undefined) => void
+  onDrop: (start: HandleType, end: HandleType) => void
+}) => {
+  return (
+    <>
+      <div class={styles.nodeName}>props</div>
+      <div class={clsx(styles.handles, styles.out)}>
+        <Index each={Object.entries(props.props)}>
+          {handleEntry => {
+            const [handleId] = handleEntry()
+            return (
+              <Handle
+                onMove={(position, hoveringHandle) =>
+                  props.onDragHandle(
+                    { nodeId: props.nodeId, handleId: handleId, type: 'prop' },
+                    position,
+                    hoveringHandle,
+                  )
+                }
+                type="prop"
+                onMoveEnd={() => props.setTemporaryEdges(undefined)}
+                onConnect={handle =>
+                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId })
+                }
+                class={styles.handle}
+                id={handleId}
+              >
+                <Anchor style={{ bottom: '0%', left: '50%', transform: 'translate(-50%, 0%)' }} />
+                <span>{handleId}</span>
+              </Handle>
+            )
+          }}
+        </Index>
+      </div>
+    </>
+  )
+}
+
+const AtomNode = (props: {
+  node: AtomNodeType
+  nodeId: string
+  onDragHandle: (
+    handle: HandleType,
+    position: Vector,
+    hoveringHandle: HandleType | undefined,
+  ) => void
+  setTemporaryEdges: (edge: EdgeType | undefined) => void
+  onDrop: (start: HandleType, end: HandleType) => void
+}) => {
+  return (
+    <>
+      <div class={styles.handles}>
+        <Index each={Object.entries(props.node.props)}>
+          {handleEntry => {
+            const [handleId, handle] = handleEntry()
+            return (
+              <Handle
+                onMove={(position, hoveringHandle) =>
+                  props.onDragHandle(
+                    { nodeId: props.nodeId, handleId: handleId, type: 'input' },
+                    position,
+                    hoveringHandle,
+                  )
+                }
+                type="input"
+                onMoveEnd={() => props.setTemporaryEdges(undefined)}
+                onConnect={handle =>
+                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId })
+                }
+                class={styles.handle}
+                id={handleId}
+              >
+                <Anchor style={{ top: '0%', left: '50%', transform: 'translate(-50%, 0%)' }} />
+                <span>{handleId}</span>
+              </Handle>
+            )
+          }}
+        </Index>
+      </div>
+      <div class={styles.nodeName}>{props.node.atom?.atomId}</div>
+      <div class={clsx(styles.handles, styles.out)}>
+        <Handle
+          onMove={(position, hoveringHandle) =>
+            props.onDragHandle(
+              { nodeId: props.nodeId, handleId: 'output', type: 'output' },
+              position,
+              hoveringHandle,
+            )
+          }
+          type="output"
+          onMoveEnd={() => props.setTemporaryEdges(undefined)}
+          onConnect={handle => props.onDrop(handle, { nodeId: props.nodeId, handleId: 'output' })}
+          id="output"
+          class={styles.handle}
+        >
+          <Anchor style={{ bottom: '0px', left: '50%', transform: 'translate(-50%, 0%)' }} />
+        </Handle>
+      </div>
+    </>
+  )
+}
+
 /**
  * Network mutates the nodes- and edges-store
  * */
 export default function Network(props: {
-  nodes: Nodes
-  setNodes: SetStoreFunction<Nodes>
-  edges: EdgeType[]
-  setEdges: SetStoreFunction<Nodes>
+  atomId: string
+  edges: NetworkAtom['edges']
+  nodes: NetworkAtom['nodes']
+  props: NetworkAtom['props']
   selectedNodeId: string
+  setNodes: SetStoreFunction<NetworkAtom['nodes']>
+  setEdges: SetStoreFunction<NetworkAtom['edges']>
 }) {
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -50,9 +170,8 @@ export default function Network(props: {
 
   const validateDrop = (start: HandleType, end: HandleType) => {
     if (start.nodeId === end.nodeId) return false
-    if (start.handleId === 'output' && end.handleId !== 'output') return true
-    if (start.handleId !== 'output' && end.handleId === 'output') return true
-    return false
+    if (start.type === end.type) return false
+    return true
   }
 
   const onDragHandle = (handle: HandleType, end: Vector, connectingHandle?: HandleType) =>
@@ -66,7 +185,7 @@ export default function Network(props: {
           end,
         })
 
-  const onDrop = (start: HandleType, end: HandleType) =>
+  const onDropHandle = (start: HandleType, end: HandleType) =>
     validateDrop(start, end) && props.setEdges(edges => [...edges, { start, end }])
 
   return (
@@ -78,9 +197,21 @@ export default function Network(props: {
     >
       <Html.Destination>
         <For each={props.edges}>
-          {edge => (
+          {(edge, index) => (
             <Edge start={edge.start} end={edge.end}>
-              {(start, end) => <Step start={start} end={end} />}
+              {(start, end) => (
+                <Step
+                  start={start}
+                  end={end}
+                  class={styles.edge}
+                  onDblClick={() =>
+                    props.setEdges(x => {
+                      x.splice(index(), 1)
+                      return [...x]
+                    })
+                  }
+                />
+              )}
             </Edge>
           )}
         </For>
@@ -92,48 +223,44 @@ export default function Network(props: {
               position={node.position}
               id={nodeId}
               onMove={position => props.setNodes(nodeId, { position })}
-              class={clsx(styles.node, nodeId === props.selectedNodeId && styles.selected)}
+              class={clsx(
+                styles.node,
+                nodeId === props.selectedNodeId && styles.selected,
+                styles[node.type],
+              )}
               tabIndex={0}
+              onDblClick={() => {
+                props.setEdges(edges =>
+                  edges.filter(edge => edge.end.nodeId !== nodeId && edge.start.nodeId !== nodeId),
+                )
+                props.setNodes(nodeId, undefined)
+              }}
             >
-              <div class={styles.handles}>
-                <Index each={Object.entries(node.parameters)}>
-                  {handleEntry => {
-                    const [handleId, handle] = handleEntry()
-                    return (
-                      <Handle
-                        onMove={(position, hoveringHandle) =>
-                          onDragHandle({ nodeId, handleId: handleId }, position, hoveringHandle)
-                        }
-                        onMoveEnd={() => setTemporaryEdges(undefined)}
-                        onConnect={handle => onDrop(handle, { nodeId, handleId: handleId })}
-                        class={styles.handle}
-                        id={handleId}
-                      >
-                        <Anchor
-                          style={{ top: '0%', left: '50%', transform: 'translate(-50%, 0%)' }}
-                        />
-                        <span>{handleId}</span>
-                      </Handle>
-                    )
-                  }}
-                </Index>
-              </div>
-              <div class={styles.nodeName}>{node.atom?.atomId}</div>
-              <div class={clsx(styles.handles, styles.out)}>
-                <Handle
-                  onMove={(position, hoveringHandle) =>
-                    onDragHandle({ nodeId, handleId: 'output' }, position, hoveringHandle)
-                  }
-                  onMoveEnd={() => setTemporaryEdges(undefined)}
-                  onConnect={handle => onDrop(handle, { nodeId, handleId: 'output' })}
-                  id="output"
-                  class={styles.handle}
-                >
-                  <Anchor
-                    style={{ bottom: '0px', left: '50%', transform: 'translate(-50%, 0%)' }}
-                  />
-                </Handle>
-              </div>
+              <Switch>
+                <Match when={node.type === 'atom' && node}>
+                  {node => (
+                    <AtomNode
+                      node={node()}
+                      nodeId={nodeId}
+                      onDragHandle={onDragHandle}
+                      setTemporaryEdges={setTemporaryEdges}
+                      onDrop={onDropHandle}
+                    />
+                  )}
+                </Match>
+                <Match when={node.type === 'props' && node}>
+                  {node => (
+                    <PropsNode
+                      atomId={props.atomId}
+                      props={props.props}
+                      nodeId={nodeId}
+                      onDragHandle={onDragHandle}
+                      setTemporaryEdges={setTemporaryEdges}
+                      onDrop={onDropHandle}
+                    />
+                  )}
+                </Match>
+              </Switch>
             </Node>
           )}
         </For>

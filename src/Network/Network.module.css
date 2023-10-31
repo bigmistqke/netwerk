@@ -29,8 +29,17 @@
     }
   }
 
+  &.selected,
+  &.props {
+    color: black !important;
+  }
+
   &.selected {
-    background: blue;
+    background: #b8e1ff;
+  }
+
+  &.props {
+    background-color: #e8aeb7;
   }
 }
 
@@ -125,5 +134,10 @@
 }
 
 .edge {
-  z-index: -1;
+  pointer-events: all;
+  cursor: pointer;
+
+  &:hover {
+    stroke-width: 2px;
+  }
 }

@@ -19,5 +19,5 @@ body {
 }
 
 .svg {
-  /* contain: content; */
+  contain: content;
 }

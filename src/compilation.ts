@@ -17,22 +17,22 @@ type NodeCache = {
 type CompilationCache = {
   atom: Map<Func, FunctionCache>
   node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
-  parameter: Map<() => any, string>
+  prop: Map<() => any, string>
 }
 
 const uuid_reset = {
-  parameter: 0,
+  prop: 0,
   atom: 0,
   node: 0,
   nodeCache: 0,
 }
 let uuid = { ...uuid_reset }
 
-const $PARAM = Symbol('parameter')
-const isParameter = (value: any) => typeof value === 'object' && $PARAM in value
+const $PROP = Symbol('prop')
+const isProp = (value: any) => typeof value === 'object' && $PROP in value
 
 export const getAtomFromContext = (ctx: Ctx, path: AtomPath): Atom | undefined => {
-  const result = ctx[path.packageId]?.[path.atomId]
+  const result = ctx[path?.packageId]?.[path?.atomId]
   if (!result) {
     console.error('getAtomFromContext is undefined:', ctx, path)
   }
@@ -53,6 +53,7 @@ const resolveProps = <T>(_props: T) => {
   const props = {} as T
   for (const key in _props) {
     const prop = _props[key]
+
     if (typeof prop === 'function') {
       props[key] = prop()
       continue
@@ -86,6 +87,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
     const props = { ...this.props }
     let pure = true
     let self = this as Node
+
     for (const key in props) {
       let prop = this.props[key]!
 
@@ -96,8 +98,8 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
         continue
       }
 
-      /* props with type parameter are marked with a symbol */
-      if (isParameter(prop)) {
+      /* handles that are connected to a props-node are marked as prop */
+      if (isProp(prop)) {
         props[key] = prop
         pure = false
         continue
@@ -185,7 +187,7 @@ class Network {
     const cache: CompilationCache = {
       atom: new Map(),
       node: new Map(),
-      parameter: new Map(),
+      prop: new Map(),
     }
 
     const intermediary = this.selectedNode?.toIntermediary({ cache, ctx })!
@@ -225,33 +227,46 @@ const createIntermediaryFromGraph = (
   uuid = { ...uuid_reset }
   const network = new Network()
   const nodes = Object.fromEntries(
-    Object.entries(graph.nodes).map(([nodeId, node]) => {
-      const func = getFuncFromContext(ctx, node.atom)
-      if (!func) throw 'could not find func'
-      return [
-        nodeId,
-        network.createNode(
-          node.atom,
-          func,
-          Object.fromEntries(
-            Object.entries(node.parameters).map(([id, parameter]) => {
-              return [
-                id,
-                parameter.type === 'parameter'
-                  ? {
-                      [$PARAM]: true,
-                      ...parameter,
-                    }
-                  : parameter.value,
-              ]
-            }),
+    Object.entries(graph.nodes)
+      .map(([nodeId, node]) => {
+        if (node.type === 'props') return [nodeId, undefined]
+
+        const func = getFuncFromContext(ctx, node.atom)
+        if (!func) throw 'could not find func'
+
+        return [
+          nodeId,
+          network.createNode(
+            node.atom,
+            func,
+            Object.fromEntries(
+              Object.entries(node.props).map(([id, prop]) => {
+                const edge = graph.edges.find(
+                  edge =>
+                    (edge.start.nodeId === nodeId && edge.start.handleId === id) ||
+                    (edge.end.nodeId === nodeId && edge.end.handleId === id),
+                )
+                if (edge && (edge.end.type === 'prop' || edge.start.type === 'prop')) {
+                  return [
+                    id,
+                    {
+                      [$PROP]: true,
+                      type: 'prop',
+                      value: edge.end.type === 'prop' ? edge.end.handleId : edge.start.handleId,
+                    },
+                  ]
+                }
+                return [id, prop.value]
+              }),
+            ),
           ),
-        ),
-      ]
-    }),
+        ]
+      })
+      .filter(v => v !== undefined),
   )
   for (const edge of graph.edges) {
-    nodes[edge.end.nodeId].updateProps({
+    if (edge && (edge.end.type === 'prop' || edge.start.type === 'prop')) continue
+    nodes[edge.end.nodeId]?.updateProps({
       [edge.end.handleId]: nodes[edge.start.nodeId],
     })
   }
@@ -286,7 +301,7 @@ const intermediaryToCode = (
     const node = cache.node.get(prop.node)
 
     if (typeof prop === 'object') {
-      if (prop.type === 'parameter') {
+      if (prop.type === 'prop') {
         argString += 'props.'
         argString += prop.value
         argString += ','

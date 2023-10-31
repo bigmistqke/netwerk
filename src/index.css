@@ -30,6 +30,7 @@
 }
 
 body {
+  color: var(--color-front);
   margin: 0;
   font-size: 11pt;
   background-color: var(--color-back);
@@ -57,7 +58,6 @@ body.panning * {
 
 * {
   font-family: var(--font);
-  color: var(--color-front);
   &:not(body) {
     transition: border-color 0.25s, outline 0.125s, fill 0.125s;
   }
@@ -75,4 +75,5 @@ ul,
 li,
 button {
   all: unset;
+  user-select: none;
 }

@@ -4,7 +4,7 @@ import type { Ctx } from './ctx'
 export type { Ctx } from './ctx'
 
 export type Func = (...args: any[]) => any
-export type DataType = 'string' | 'number' | 'parameter'
+export type DataType = 'string' | 'number' | 'prop'
 
 export type AtomPath = {
   packageId: keyof Ctx
@@ -13,7 +13,7 @@ export type AtomPath = {
 
 export interface CodeAtom {
   func: (props: Record<string, Exclude<any, Function>>) => any
-  parameters: Record<string, Parameter>
+  props: Record<string, Parameter>
   returnType: DataType
 }
 
@@ -26,16 +26,28 @@ export interface NetworkAtom extends CodeAtom {
 
 export type Atom = CodeAtom | NetworkAtom
 
-export type Node = Omit<Atom, 'func' | 'returnType'> & {
+interface NodeBase {
   position: Vector
-  atom: AtomPath
 }
+
+export interface AtomNode extends NodeBase {
+  type: 'atom'
+  atom: AtomPath
+  props: Atom['props']
+}
+
+export interface PropsNode extends NodeBase {
+  type: 'props'
+}
+
+export type Node = AtomNode | PropsNode
+
 export type Nodes = Record<string, Node>
 
 export type Package = Record<string, CodeAtom | NetworkAtom>
 
 /* NETWORK */
 
-export type Handle = { handleId: string; nodeId: string }
+export type Handle = { handleId: string; nodeId: string; type: 'output' | 'input' | 'prop' }
 export type Edge = { start: Handle; end: Handle }
 export type Parameter<T = any> = { type: DataType; value: T }
