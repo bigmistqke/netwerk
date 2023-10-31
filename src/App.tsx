@@ -229,8 +229,8 @@ const App: Component = () => {
         <h2>Compilation</h2>
         <div
           class={styles.panel__code}
-          innerHTML={`(${compiledGraph().func.toString()}
-)(${JSON.stringify(ctx, null, 2)}), ${JSON.stringify(params, null, 2)}`}
+          innerHTML={`(${compiledGraph().func.toString()})
+(${JSON.stringify(ctx, null, 2)}), ${JSON.stringify(params, null, 2)}`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>

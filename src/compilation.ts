@@ -204,11 +204,12 @@ class Network {
           )};`,
       )
 
-    return `
-(ctx, parameters) => {
-  ${usedNodesToCode.join('\n')}
-  return ${code.join('')}
-}`
+    const body = [...usedNodesToCode, `return ${code.join('')}\n`]
+      /* prefix with padding */
+      .map(v => `\n  ${v}`)
+      .join('')
+
+    return `(ctx, parameters) => {${body}}`
   }
 }
 
