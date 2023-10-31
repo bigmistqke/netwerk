@@ -20,7 +20,8 @@
     vertical-align: middle;
   }
 
-  &:hover {
+  &:hover,
+  &:focus {
     background: var(--color-front);
     & * {
       fill: var(--color-back);
@@ -39,7 +40,9 @@
     cursor: crosshair;
   }
 
-  &:hover {
+  &:hover,
+  &:focus {
     border-color: var(--color-front);
+    outline: none;
   }
 }

@@ -11,6 +11,11 @@ export const DivButton = (
       aria-label={props.label}
       class={clsx(styles.divButton, styles.button, props.class)}
       onClick={props.onClick}
+      onKeyDown={e => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          props.onClick()
+        }
+      }}
       tabIndex={0}
     >
       {props.children}
