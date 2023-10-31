@@ -6,6 +6,19 @@
   cursor: pointer;
 }
 
+.defaultButton {
+  &:hover,
+  &:focus-visible {
+    border-color: var(--color-front);
+    outline: none;
+  }
+  &:active {
+    background: var(--color-front);
+    color: var(--color-back);
+    outline: none;
+  }
+}
+
 .iconButton {
   padding: 2px;
   background: transparent;
@@ -21,7 +34,7 @@
   }
 
   &:hover,
-  &:focus {
+  &:focus-visible {
     background: var(--color-front);
     & * {
       fill: var(--color-back);

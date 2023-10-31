@@ -5,13 +5,12 @@ import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
 import { compileGraph, getAtomFromContext } from './compilation'
-import { IconButton } from './components/IconButton'
-import { LabelButton } from './components/LabelButton'
 import { ctx } from './ctx'
 import type { Atom, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
 
 import clsx from 'clsx'
 import styles from './App.module.css'
+import { Button, IconButton, LabelButton } from './components/Button'
 import { Toggle } from './components/Switch'
 import { isDarkMode } from './utils/isDarkMode'
 
@@ -218,7 +217,14 @@ const App: Component = () => {
         <div>
           {Object.entries(ctx).map(([packageId, _package]) => (
             <div class={styles.panel}>
-              <h3>{packageId}</h3>
+              <h3 class={styles.packageHeading}>
+                <span>{packageId}</span>
+                {packageId === 'self' ? (
+                  <Button onClick={() => {}} label="add new atom">
+                    +
+                  </Button>
+                ) : undefined}
+              </h3>
               <ul class={styles.list}>
                 {Object.keys(_package).map(atomId => (
                   <li>

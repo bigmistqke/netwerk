@@ -53,3 +53,15 @@
   right: 0px;
   z-index: 10;
 }
+
+.packageHeading {
+  display: flex;
+  & > span {
+    flex: 1;
+  }
+  & button {
+    width: 17px;
+    text-align: center;
+    border-radius: 50%;
+  }
+}
