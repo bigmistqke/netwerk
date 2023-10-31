@@ -1,9 +1,9 @@
-import { Component, createEffect, createSignal } from 'solid-js'
+import { Component, batch, createEffect, createSignal } from 'solid-js'
 
 import { createStore } from 'solid-js/store'
 import Network from './Network/index'
 import { compileGraph } from './compilation'
-import type { Func, Nodes } from './types'
+import type { Func, Nodes, Package } from './types'
 import { randomFromObject } from './utils/randomFromObject'
 
 const createNodes = (amount = 100) => {
@@ -59,9 +59,35 @@ const App: Component = () => {
   const [value, setValue] = createSignal(2)
   const [value2, setValue2] = createSignal(2)
 
-  const std = {
-    add: { func: args => args.a + args.b },
-    multiply: { func: args => args.a * args.b },
+  const std: Package = {
+    add: {
+      func: args => args.a + args.b,
+      returnType: 'number',
+      parameters: {
+        a: {
+          type: 'number',
+          value: 0,
+        },
+        b: {
+          type: 'number',
+          value: 0,
+        },
+      },
+    },
+    multiply: {
+      func: args => args.a * args.b,
+      returnType: 'number',
+      parameters: {
+        a: {
+          type: 'number',
+          value: 0,
+        },
+        b: {
+          type: 'number',
+          value: 0,
+        },
+      },
+    },
   }
 
   const ctx = {
@@ -69,124 +95,135 @@ const App: Component = () => {
   }
 
   setTimeout(() => {
-    setValue(100)
-    setValue2(200)
+    batch(() => {
+      setValue(100)
+      setValue2(200)
+    })
   }, 1000)
 
-  const multiply = {
-    atom: eval('ctx.std.multiply'),
-    output: 'multiply',
-    parameters: {
-      a: {
-        type: 'number',
-        value: 0,
+  const [self, setSelf] = createStore({
+    main: {
+      nodes: {
+        sum: {
+          ...ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'number',
+              value: value2,
+            },
+            b: {
+              type: 'number',
+              value: 1,
+            },
+          },
+          position: {
+            x: 100,
+            y: 100,
+          },
+        },
+        sum2: {
+          ...ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'number',
+              value,
+            },
+            b: {
+              type: 'number',
+              value: 3,
+            },
+          },
+          position: {
+            x: 200,
+            y: 100,
+          },
+        },
+        sum3: {
+          ...ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'number',
+              value: 0,
+            },
+            b: {
+              type: 'number',
+              value: 3,
+            },
+          },
+          position: {
+            x: 300,
+            y: 150,
+          },
+        },
+        sum4: {
+          ...ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'number',
+              value: 3,
+            },
+            b: {
+              type: 'number',
+              value: 3,
+            },
+          },
+          position: {
+            x: 200,
+            y: 200,
+          },
+        },
+        multiply: {
+          ...ctx.std.multiply,
+          parameters: {
+            a: {
+              type: 'number',
+              value: 0,
+            },
+            b: {
+              type: 'number',
+              value: 2,
+            },
+          },
+          position: {
+            x: 100,
+            y: 300,
+          },
+        },
       },
-      b: {
-        type: 'number',
-        value: 2,
-      },
-    },
-  }
-
-  const [nodes] = createStore<Nodes>({
-    sum: {
-      ...createSum(ctx, {
-        a: {
-          type: 'number',
-          value: value2,
-        },
-        b: {
-          type: 'number',
-          value: 1,
-        },
-      }),
-      position: {
-        x: 100,
-        y: 100,
-      },
-    },
-    sum2: {
-      ...createSum(ctx, {
-        a: {
-          type: 'number',
-          value,
-        },
-        b: {
-          type: 'number',
-          value: 3,
-        },
-      }),
-      position: {
-        x: 200,
-        y: 100,
-      },
-    },
-    sum3: {
-      ...createSum(ctx, {
-        a: {
-          type: 'number',
-          value: 0,
-        },
-        b: {
-          type: 'number',
-          value: 3,
-        },
-      }),
-      position: {
-        x: 300,
-        y: 150,
-      },
-    },
-    sum4: {
-      ...createSum(ctx, {
-        a: {
-          type: 'number',
-          value: 3,
-        },
-        b: {
-          type: 'number',
-          value: 3,
-        },
-      }),
-      position: {
-        x: 200,
-        y: 200,
-      },
-    },
-    multiply: {
-      ...multiply,
-      position: {
-        x: 100,
-        y: 300,
-      },
+      edges: [
+        // /* {
+        //   start: { nodeId: 'sum', handleId: 'output' },
+        //   end: { nodeId: 'sum3', handleId: 'a' },
+        // },
+        // {
+        //   start: { nodeId: 'sum3', handleId: 'output' },
+        //   end: { nodeId: 'multiply', handleId: 'a' },
+        // },
+        // {
+        //   start: { nodeId: 'sum2', handleId: 'output' },
+        //   end: { nodeId: 'sum', handleId: 'b' },
+        // }, */
+        // /* {
+        //   start: { nodeId: 'multiply3', handleId: 'output' },
+        //   end: { nodeId: 'sum2', handleId: 'a' },
+        // }, */
+      ],
+      func: (() => {}) as Func,
+      parameters: {},
+      returnType: 'number',
     },
   })
 
-  const [edges, setEdges] = createStore([
-    /* {
-      start: { nodeId: 'sum', handleId: 'output' },
-      end: { nodeId: 'sum3', handleId: 'a' },
-    },
-    {
-      start: { nodeId: 'sum3', handleId: 'output' },
-      end: { nodeId: 'multiply', handleId: 'a' },
-    },
-    {
-      start: { nodeId: 'sum2', handleId: 'output' },
-      end: { nodeId: 'sum', handleId: 'b' },
-    }, */
-    /* {
-      start: { nodeId: 'multiply3', handleId: 'output' },
-      end: { nodeId: 'sum2', handleId: 'a' },
-    }, */
-  ])
-
-  const compiledGraph = compileGraph({ nodes, edges, selectedNodeId: 'multiply' })
+  const compiledGraph = compileGraph({ ...self.main, selectedNodeId: 'multiply' })
   createEffect(() => console.log(compiledGraph()(value2(), value())))
 
   return (
     <div>
-      <Network nodes={nodes} edges={edges} />
+      <Network nodes={self.main.nodes} edges={self.main.edges} />
     </div>
   )
 }
