@@ -1,7 +1,7 @@
 import { Vector } from '@lib/spagett/types'
 
 export type Func = (...args: any[]) => any
-export type DataType = 'string' | 'number'
+export type DataType = 'string' | 'number' | 'parameter'
 
 export interface CodeAtom {
   func: (props: Record<string, Exclude<any, Function>>) => any
@@ -29,4 +29,4 @@ export type Package = Record<string, CodeAtom | NetworkAtom>
 
 export type Handle = { handleId: string; nodeId: string }
 export type Edge = { start: Handle; end: Handle }
-export type Parameter<T = any> = { type: string; value: T }
+export type Parameter<T = any> = { type: DataType; value: T }

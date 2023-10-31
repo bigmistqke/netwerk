@@ -75,6 +75,12 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
         continue
       }
 
+      if (isParameter(prop)) {
+        props[key] = prop
+        pure = false
+        continue
+      }
+
       /* this prop is a Node */
       if (typeof prop === 'object' && 'exec' in prop) {
         const node_cache = cache.node.get(prop as Node)
@@ -177,14 +183,17 @@ class Network {
       .map(node => `const __node__${node.id} = ${intermediaryToCode(node.intermediary, cache)};`)
 
     return `
-(${Array.from(cache.parameter.values()).join(', ')}) => {
+(parameters) => {
   ${[...atomsToCode, ...usedNodesToCode].join('\n  ')}\n
   return ${code}
 }`
   }
 }
 
-const createNetworkFromGraph = (graph: {
+const $PARAM = Symbol('parameter')
+const isParameter = (value: any) => typeof value === 'object' && $PARAM in value
+
+const createIntermediaryFromGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
@@ -200,7 +209,15 @@ const createNetworkFromGraph = (graph: {
           node.func,
           Object.fromEntries(
             Object.entries(node.parameters).map(([id, parameter]) => {
-              return [id, parameter.value]
+              return [
+                id,
+                parameter.type === 'parameter'
+                  ? {
+                      [$PARAM]: true,
+                      ...parameter,
+                    }
+                  : parameter.value,
+              ]
             }),
           ),
         ),
@@ -229,32 +246,36 @@ const intermediaryToCode = (
   /* if atom is in the cache it means its value is memoized */
   string += cache.atom.get(intermediary.atom)?.id || intermediary.atom.toString()
   string += ')({'
-  Object.entries(intermediary.props).forEach(([propId, prop]) => {
+  const entries = Object.entries(intermediary.props)
+  for (const entry of entries) {
+    const [propId, prop] = entry
+
     string += propId
     string += ': '
 
     const node = cache.node.get(prop.node)
 
     if (typeof prop === 'object') {
+      if (prop.type === 'parameter') {
+        string += 'parameters.'
+        string += prop.value
+        string += ','
+        continue
+      }
       const resolvedProps = intermediaryToCode(prop, cache)
       if (node?.visited) {
         node.used = true
         string += `__node__${node.id}`
-      } else {
-        string += resolvedProps
+        string += ','
+        continue
       }
-    } else if (typeof prop === 'function') {
-      let id = cache.parameter.get(prop)
-      if (!id) {
-        id = 'parameter__' + uuid.parameter++
-        cache.parameter.set(prop, id)
-      }
-      string += cache.parameter.get(prop)
-    } else {
-      string += prop
+      string += resolvedProps
+      string += ','
+      continue
     }
+    string += prop
     string += ','
-  })
+  }
   string += '})'
 
   return string
@@ -262,8 +283,10 @@ const intermediaryToCode = (
 
 export const compileGraph = (graph: Atom) => {
   let start = performance.now()
+  const code = 'nodes' in graph && createIntermediaryFromGraph(graph).toCode()
+  console.log('code is ', code)
   return {
-    func: 'nodes' in graph ? eval(createNetworkFromGraph(graph).toCode()) : graph.func,
+    func: code ? eval(code) : graph.func,
     time: performance.now() - start,
   }
 }

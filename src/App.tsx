@@ -67,12 +67,8 @@ const App: Component = () => {
           parameters: {
             ...ctx.std.add.parameters,
             a: {
-              type: 'number',
-              value: value2,
-            },
-            b: {
-              type: 'number',
-              value: 1,
+              type: 'parameter',
+              value: 'a',
             },
           },
           position: {
@@ -85,8 +81,8 @@ const App: Component = () => {
           parameters: {
             ...ctx.std.add.parameters,
             a: {
-              type: 'number',
-              value,
+              type: 'parameter',
+              value: 'b',
             },
             b: {
               type: 'number',
@@ -171,7 +167,16 @@ const App: Component = () => {
         // }, */
       ],
       func: (() => {}) as Func,
-      parameters: {},
+      parameters: {
+        a: {
+          value: 0,
+          type: 'number',
+        },
+        b: {
+          value: 0,
+          type: 'number',
+        },
+      },
       returnType: 'number',
       selectedNodeId: 'multiply',
     } as NetworkAtom,
@@ -188,7 +193,8 @@ const App: Component = () => {
         // if it would throw
         const result = compileGraph(selectedAtom())
         return result
-      } catch {
+      } catch (error) {
+        console.error('error while compiling graph:', error)
         return prev
       }
     },
@@ -221,13 +227,14 @@ const App: Component = () => {
       </div>
       <div class={styles.panel}>
         <h2>Compilation</h2>
-        <div class={styles.panel__code}>
-          ({compiledGraph().func.toString()})({value2()}, {value()})
-        </div>
+        <div
+          class={styles.panel__code}
+          innerHTML={`(${compiledGraph().func.toString()})({a: ${value2()}, b: ${value()}})`}
+        />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func(value2(), value())}</div>
+        <div>{compiledGraph().func({ a: value2(), b: value() })}</div>
       </div>
     </div>
   )
