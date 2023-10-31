@@ -1,7 +1,5 @@
-import { createLazyMemo } from '@solid-primitives/memo'
-import { createSignal, type Accessor, type Setter } from 'solid-js'
-
-import { Edge, Func, Nodes } from './types'
+import { createSignal, type Accessor } from 'solid-js'
+import type { Edge, Func, Nodes } from './types'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | Accessor<T[TKey]>
@@ -143,70 +141,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       node: self,
     }
   }
-  exec = createLazyMemo(() => {
-    return this.atom instanceof Network ? this.atom.exec() : this.atom(this.resolveProps())
-  })
-}
-
-class Parameter<T> {
-  exec: Accessor<T>
-  set: Setter<T>
-  name: string
-  constructor(name: string, value: T) {
-    const [signal, setSignal] = createSignal(value)
-    this.exec = signal
-    this.set = setSignal
-    this.name = name
-  }
-  toJSON() {
-    return {
-      name: this.name,
-      value: this.exec(),
-    }
-  }
-}
-
-const intermediaryToCode = (
-  intermediary: ReturnType<Node['toIntermediary']>,
-  cache: CompilationCache,
-) => {
-  if (cache.atom.has(intermediary.atom)) {
-    cache.atom.get(intermediary.atom)!.used = true
-  }
-
-  let string = ''
-  string += `(`
-  string += cache.atom.get(intermediary.atom)?.id || intermediary.atom.toString()
-  string += ')({'
-  Object.entries(intermediary.props).forEach(([propId, prop]) => {
-    string += propId
-    string += ': '
-
-    const node = cache.node.get(prop.node)
-
-    if (typeof prop === 'object') {
-      const resolvedProps = intermediaryToCode(prop, cache)
-      if (node?.visited) {
-        node.used = true
-        string += `__node__${node.id}`
-      } else {
-        string += resolvedProps
-      }
-    } else if (typeof prop === 'function') {
-      let id = cache.parameter.get(prop)
-      if (!id) {
-        id = 'parameter__' + uuid.parameter++
-        cache.parameter.set(prop, id)
-      }
-      string += cache.parameter.get(prop)
-    } else {
-      string += prop
-    }
-    string += ','
-  })
-  string += '})'
-
-  return string
+  exec = () => (this.atom instanceof Network ? this.atom.exec() : this.atom(this.resolveProps()))
 }
 
 class Network {
@@ -257,7 +192,7 @@ class Network {
   }
 }
 
-export const createIntermediaryFromGraph = (graph: {
+const createIntermediaryFromGraph = (graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
@@ -287,6 +222,50 @@ export const createIntermediaryFromGraph = (graph: {
   }
   network.selectNode(nodes[graph.selectedNodeId])
   return network
+}
+
+const intermediaryToCode = (
+  intermediary: ReturnType<Node['toIntermediary']>,
+  cache: CompilationCache,
+) => {
+  if (cache.atom.has(intermediary.atom)) {
+    cache.atom.get(intermediary.atom)!.used = true
+  }
+
+  let string = ''
+  string += `(`
+  /* if atom is in the cache it means its value is memoized */
+  string += cache.atom.get(intermediary.atom)?.id || intermediary.atom.toString()
+  string += ')({'
+  Object.entries(intermediary.props).forEach(([propId, prop]) => {
+    string += propId
+    string += ': '
+
+    const node = cache.node.get(prop.node)
+
+    if (typeof prop === 'object') {
+      const resolvedProps = intermediaryToCode(prop, cache)
+      if (node?.visited) {
+        node.used = true
+        string += `__node__${node.id}`
+      } else {
+        string += resolvedProps
+      }
+    } else if (typeof prop === 'function') {
+      let id = cache.parameter.get(prop)
+      if (!id) {
+        id = 'parameter__' + uuid.parameter++
+        cache.parameter.set(prop, id)
+      }
+      string += cache.parameter.get(prop)
+    } else {
+      string += prop
+    }
+    string += ','
+  })
+  string += '})'
+
+  return string
 }
 
 export const compileGraph = <T extends (...args: any[]) => any>(graph: {
