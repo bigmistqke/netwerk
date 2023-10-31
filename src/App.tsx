@@ -1,3 +1,4 @@
+import { AiFillTool } from 'solid-icons/ai'
 import { Component, Show, batch, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 
@@ -6,6 +7,8 @@ import { compileGraph } from './compilation'
 import type { Func, NetworkAtom, Package } from './types'
 
 import styles from './App.module.css'
+import { IconButton } from './components/IconButton'
+import { LabelButton } from './components/LabelButton'
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ packageId: keyof typeof ctx; atomId: string }>({
@@ -221,7 +224,18 @@ const App: Component = () => {
               <ul class={styles.list}>
                 {Object.keys(_package).map(atomId => (
                   <li>
-                    <button onClick={() => setSelected({ packageId, atomId })}>{atomId}</button>
+                    <LabelButton
+                      label={atomId}
+                      onClick={() => console.log('TODO: add atom to graph')}
+                    >
+                      <IconButton
+                        icon={<AiFillTool />}
+                        label="edit"
+                        onClick={() =>
+                          setSelected({ packageId: packageId as keyof typeof ctx, atomId })
+                        }
+                      />
+                    </LabelButton>
                   </li>
                 ))}
               </ul>

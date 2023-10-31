@@ -12,13 +12,19 @@
   /* overflow: hidden; */
 
   background: var(--color-back);
-  border: 1px solid var(--color-front);
+  border: 1px solid var(--color-grey-dark);
   border-radius: 5px;
   color: var(--color-front);
   cursor: move;
 
   &:hover {
-    outline: 1px solid white;
+    border-color: var(--color-front);
+    & .handle {
+      border-color: var(--color-front);
+      &:hover {
+        outline: 2px solid var(--color-front);
+      }
+    }
   }
 
   &.selected {
@@ -87,13 +93,9 @@
   color: var(--color-front);
   font-size: 6pt;
   border-radius: 50%;
-  border: 1px solid var(--color-front);
+  border: 1px solid var(--color-grey-dark);
   background: var(--color-back);
   cursor: pointer;
-
-  &:hover {
-    outline: 1px solid white;
-  }
 }
 
 .handles {

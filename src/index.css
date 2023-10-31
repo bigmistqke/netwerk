@@ -11,8 +11,18 @@
   --margin: 6px;
   --mono: mono;
   --font: geist;
-  --color-back: white;
-  --color-front: black;
+  --color-back: rgb(250, 250, 250);
+  --color-front: rgb(0, 0, 0);
+  --color-grey-light: rgb(187.5, 187.5, 187.5);
+  --color-grey: rgb(125, 125, 125);
+  --color-grey-dark: rgb(62.5, 62.5, 62.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-front: rgb(250, 250, 250);
+    --color-back: rgb(0, 0, 0);
+  }
 }
 
 body {
@@ -36,16 +46,10 @@ body.panning * {
   color: var(--color-back);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-back: black;
-    --color-front: white;
-  }
-}
-
 * {
   font-family: var(--font);
   color: var(--color-front);
+  transition: border-color 0.25s, background 0.5s, outline 0.125s, fill 0.125s;
 }
 
 code {
@@ -60,19 +64,4 @@ ul,
 li,
 button {
   all: unset;
-}
-
-button {
-  padding: 5px;
-
-  background: transparent;
-  border: 1px solid var(--color-front);
-  border-radius: 5px;
-  color: var(--color-front);
-  cursor: pointer;
-
-  &:hover {
-    background: var(--color-front);
-    color: var(--color-back);
-  }
 }
