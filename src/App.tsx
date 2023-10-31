@@ -7,7 +7,7 @@ import { compileGraph, getAtomFromContext } from './compilation'
 import { IconButton } from './components/IconButton'
 import { LabelButton } from './components/LabelButton'
 import { ctx } from './ctx'
-import type { Ctx, Func, NetworkAtom } from './types'
+import type { Atom, Ctx, Func, NetworkAtom } from './types'
 
 import styles from './App.module.css'
 
@@ -192,6 +192,9 @@ const App: Component = () => {
     },
   }
 
+  const castToNetworkAtomIfPossible = (atom: Atom | undefined) =>
+    atom && 'nodes' in atom && (atom as NetworkAtom)
+
   return (
     <div class={styles.panels}>
       <div class={styles.panel}>
@@ -221,7 +224,7 @@ const App: Component = () => {
         </div>
       </div>
       <div class={styles.panel}>
-        <Show when={'nodes' in selectedAtom() && (selectedAtom() as NetworkAtom)}>
+        <Show when={castToNetworkAtomIfPossible(selectedAtom())}>
           {atom => <Network {...atom()} />}
         </Show>
       </div>
@@ -230,9 +233,7 @@ const App: Component = () => {
         <div
           class={styles.panel__code}
           innerHTML={`(${compiledGraph().func.toString()})
-({
-  parameters: ${JSON.stringify(parameters, null, 2)}, 
-  ctx: ${JSON.stringify(ctx, null, 2)}
+({ "parameters": ${JSON.stringify(parameters, null, 2)}, "ctx": ${JSON.stringify(ctx, null, 2)}
 })`}
         />
         <h2>Compilation Time</h2>
