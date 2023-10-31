@@ -3,11 +3,11 @@ import { Component, Show, batch, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 
 import Network from './Network/index'
-import { compileGraph } from './compilation'
+import { compileGraph, getAtomFromContext } from './compilation'
 import { IconButton } from './components/IconButton'
 import { LabelButton } from './components/LabelButton'
 import { ctx } from './ctx'
-import type { Ctx, Func, NetworkAtom, Package } from './types'
+import type { Ctx, Func, NetworkAtom } from './types'
 
 import styles from './App.module.css'
 
@@ -166,15 +166,14 @@ const App: Component = () => {
   })
   ctx.self = self
 
-  const selectedAtom = () => (ctx[selected().packageId] as Package)[selected().atomId]
+  const selectedAtom = () => getAtomFromContext(ctx, selected())
 
   const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
       try {
-        // we can not directly return compileGraph
-        // because otherwise we wouldn't catch it
-        // if it would throw
-        const result = compileGraph(ctx, selectedAtom())
+        const _selectedAtom = selectedAtom()
+        if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
+        const result = compileGraph(ctx, _selectedAtom)
         return result
       } catch (error) {
         console.error('error while compiling graph:', error)

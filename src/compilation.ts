@@ -31,8 +31,16 @@ let uuid = { ...uuid_reset }
 const $PARAM = Symbol('parameter')
 const isParameter = (value: any) => typeof value === 'object' && $PARAM in value
 
-const getFuncFromContext = (context: Ctx, path: AtomPath): Func | undefined => {
-  const result = context[path.packageId]?.[path.atomId]?.func
+export const getAtomFromContext = (context: Ctx, path: AtomPath): Atom | undefined => {
+  const result = context[path.packageId]?.[path.atomId]
+  if (!result) {
+    console.error('getAtomFromContext is undefined:', context, path)
+  }
+  return result
+}
+
+export const getFuncFromContext = (context: Ctx, path: AtomPath): Func | undefined => {
+  const result = getAtomFromContext(context, path)?.func
   if (!result) {
     console.error('getFuncFromContext is undefined:', context, path)
   }
@@ -299,7 +307,7 @@ const intermediaryToCode = (
         
         currently we are dynamically linking, without any typechecks.
       */
-      const [, arg] = intermediaryToCode(context, prop, cache)
+      const [callback, arg] = intermediaryToCode(context, prop, cache)
       if (node?.visited) {
         node.used = true
         argString += `__node__${node.id}`
@@ -307,7 +315,7 @@ const intermediaryToCode = (
         continue
       }
       // string += code
-      argString += generateCodeFromAtomPath(intermediary.path)
+      argString += generateCodeFromAtomPath(prop.path)
       argString += arg
       argString += ', '
       continue

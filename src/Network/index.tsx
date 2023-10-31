@@ -113,7 +113,9 @@ export default function Network(props: {
                         <Anchor
                           style={{ top: '0%', left: '50%', transform: 'translate(-50%, 0%)' }}
                         />
-                        <span>{handleId}</span>
+                        <span>
+                          {handleId} {value.type === 'parameter' ? value.value : value.value}
+                        </span>
                       </Handle>
                     )
                   }}
