@@ -1,5 +1,5 @@
 import { createLazyMemo } from '@solid-primitives/memo'
-import { createMemo, createSignal, type Accessor, type Setter } from 'solid-js'
+import { createSignal, type Accessor, type Setter } from 'solid-js'
 
 import { Edge, Func, Nodes } from './types'
 
@@ -289,22 +289,18 @@ export const createIntermediaryFromGraph = (graph: {
   return network
 }
 
-export const compileGraph = (graph: {
+export const compileGraph = <T extends (...args: any[]) => any>(graph: {
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: keyof Nodes
 }) => {
-  return createMemo(prev => {
-    try {
-      console.time('compilation')
-      const code = createIntermediaryFromGraph(graph).toCode()
-      const result = eval(code)
-      console.timeEnd('compilation')
-      console.log('code:\n', code)
-      return result
-    } catch (err) {
-      console.error(err)
-      return prev
-    }
-  })
+  try {
+    console.time('compilation')
+    const code = createIntermediaryFromGraph(graph).toCode()
+    const result = eval(code)
+    console.timeEnd('compilation')
+    return result as T
+  } catch {
+    return undefined
+  }
 }

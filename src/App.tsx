@@ -1,9 +1,9 @@
-import { Component, batch, createEffect, createSignal } from 'solid-js'
+import { Component, batch, createEffect, createMemo, createSignal } from 'solid-js'
 
 import { createStore } from 'solid-js/store'
 import Network from './Network/index'
 import { compileGraph } from './compilation'
-import type { Func, Nodes, Package } from './types'
+import type { Func, NetworkAtom, Nodes, Package } from './types'
 import { randomFromObject } from './utils/randomFromObject'
 
 const createNodes = (amount = 100) => {
@@ -59,7 +59,7 @@ const App: Component = () => {
   const [value, setValue] = createSignal(2)
   const [value2, setValue2] = createSignal(2)
 
-  const std: Package = {
+  const std = {
     add: {
       func: args => args.a + args.b,
       returnType: 'number',
@@ -92,6 +92,7 @@ const App: Component = () => {
 
   const ctx = {
     std,
+    self: {} as Package,
   }
 
   setTimeout(() => {
@@ -215,10 +216,14 @@ const App: Component = () => {
       func: (() => {}) as Func,
       parameters: {},
       returnType: 'number',
-    },
+      selectedNodeId: 'multiply',
+    } as NetworkAtom,
   })
-
-  const compiledGraph = compileGraph({ ...self.main, selectedNodeId: 'multiply' })
+  ctx.self = self
+  const compiledGraph = createMemo<Func>(prev => {
+    const result = compileGraph(self.main)
+    return result || prev || (() => {})
+  })
   createEffect(() => console.log(compiledGraph()(value2(), value())))
 
   return (

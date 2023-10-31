@@ -13,6 +13,7 @@ export interface NetworkAtom extends CodeAtom {
   func: (props: Record<string, Exclude<any, Function>>) => any
   nodes: Nodes
   edges: Edge[]
+  selectedNodeId: string
 }
 
 export type Atom = CodeAtom | NetworkAtom
@@ -22,7 +23,7 @@ export type Node = Atom & {
 }
 export type Nodes = Record<string, Node>
 
-export type Package = Record<string, Atom>
+export type Package = Record<string, CodeAtom | NetworkAtom>
 
 /* NETWORK */
 
