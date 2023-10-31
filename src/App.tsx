@@ -1,5 +1,5 @@
 import { AiFillTool } from 'solid-icons/ai'
-import { Component, Show, batch, createMemo, createSignal } from 'solid-js'
+import { Component, Show, batch, createEffect, createMemo, createSignal } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import zeptoid from 'zeptoid'
 
@@ -62,89 +62,6 @@ const App: Component = () => {
             y: 100,
           },
         },
-        sum2: {
-          atom: {
-            packageId: 'std',
-            atomId: 'add',
-          },
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'parameter',
-              value: 'b',
-            },
-            b: {
-              type: 'number',
-              value: 3,
-            },
-          },
-          position: {
-            x: 200,
-            y: 100,
-          },
-        },
-        sum3: {
-          atom: {
-            packageId: 'std',
-            atomId: 'add',
-          },
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'number',
-              value: 0,
-            },
-            b: {
-              type: 'number',
-              value: 3,
-            },
-          },
-          position: {
-            x: 300,
-            y: 150,
-          },
-        },
-        sum4: {
-          atom: {
-            packageId: 'std',
-            atomId: 'add',
-          },
-          parameters: {
-            ...ctx.std.add.parameters,
-            a: {
-              type: 'number',
-              value: 3,
-            },
-            b: {
-              type: 'number',
-              value: 3,
-            },
-          },
-          position: {
-            x: 200,
-            y: 200,
-          },
-        },
-        multiply: {
-          atom: {
-            packageId: 'std',
-            atomId: 'multiply',
-          },
-          parameters: {
-            a: {
-              type: 'number',
-              value: 0,
-            },
-            b: {
-              type: 'number',
-              value: 2,
-            },
-          },
-          position: {
-            x: 100,
-            y: 300,
-          },
-        },
       },
       edges: [
         // /* {
@@ -176,7 +93,40 @@ const App: Component = () => {
         },
       },
       returnType: 'number',
-      selectedNodeId: 'multiply',
+      selectedNodeId: 'sum',
+    } as NetworkAtom,
+    second: {
+      nodes: {
+        sum: {
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
+          func: ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'parameter',
+              value: 'a',
+            },
+          },
+          position: {
+            x: 100,
+            y: 100,
+          },
+        },
+      },
+      edges: [],
+      func: ctx.std.add.func,
+      parameters: {
+        ...ctx.std.add.parameters,
+        a: {
+          type: 'parameter',
+          value: 'a',
+        },
+      },
+      returnType: 'number',
+      selectedNodeId: 'sum',
     } as NetworkAtom,
   })
   ctx.self = self
@@ -188,8 +138,8 @@ const App: Component = () => {
       try {
         const _selectedAtom = selectedAtom()
         if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
-        const result = compileGraph(ctx, _selectedAtom)
-        return result
+        const func = compileGraph(ctx, _selectedAtom)
+        return func
       } catch (error) {
         console.error('error while compiling graph:', error)
         return prev
@@ -197,6 +147,11 @@ const App: Component = () => {
     },
     { func: () => {}, time: 0 },
   )
+
+  createEffect(() => {
+    const func = compiledGraph().func
+    if (func) setSelf(selected().atomId, 'func', () => func)
+  })
 
   const resolveParameters = () =>
     selectedAtom() &&
@@ -210,6 +165,38 @@ const App: Component = () => {
   const castToNetworkAtomIfPossible = (atom: Atom | undefined) =>
     atom && 'nodes' in atom && (atom as NetworkAtom)
 
+  let atomId = 0
+  const addAtomToSelf = () => {
+    console.log('addAtomToSelf')
+    setSelf('atom' + atomId++, {
+      nodes: {
+        sum: {
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
+          func: ctx.std.add,
+          parameters: {
+            ...ctx.std.add.parameters,
+            a: {
+              type: 'parameter',
+              value: 'a',
+            },
+          },
+          position: {
+            x: 100,
+            y: 100,
+          },
+        },
+      },
+      edges: [],
+      func: (() => {}) as Func,
+      parameters: {},
+      returnType: 'number',
+      selectedNodeId: 'sum',
+    } as NetworkAtom)
+  }
+
   return (
     <div class={styles.panels}>
       <div class={styles.panel}>
@@ -220,7 +207,7 @@ const App: Component = () => {
               <h3 class={styles.packageHeading}>
                 <span>{packageId}</span>
                 {packageId === 'self' ? (
-                  <Button onClick={() => {}} label="add new atom">
+                  <Button onClick={addAtomToSelf} label="add new atom">
                     +
                   </Button>
                 ) : undefined}
@@ -242,6 +229,7 @@ const App: Component = () => {
                         icon={<AiFillTool />}
                         label="edit"
                         onClick={() => setSelected({ packageId: packageId as keyof Ctx, atomId })}
+                        stopPropagation
                       />
                     </LabelButton>
                   </li>
@@ -270,6 +258,8 @@ const App: Component = () => {
             <Network
               nodes={atom().nodes}
               edges={atom().edges}
+              setNodes={(...args) => setSelf(selected().atomId, 'nodes', ...args)}
+              setEdges={(...args) => setSelf(selected().atomId, 'edges', ...args)}
               selectedNodeId={atom().selectedNodeId}
             />
           )}

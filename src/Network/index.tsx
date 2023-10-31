@@ -2,10 +2,10 @@ import { For, Index, Show, createSignal } from 'solid-js'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
-import { createStore } from 'solid-js/store'
 import type { Edge as EdgeType, Handle as HandleType, Nodes } from 'src/types'
 
 import clsx from 'clsx'
+import { SetStoreFunction } from 'solid-js/store'
 import styles from './Network.module.css'
 
 const Step = (props: { start: Vector; end: Vector }) => {
@@ -38,11 +38,20 @@ const Step = (props: { start: Vector; end: Vector }) => {
  * */
 export default function Network(props: {
   nodes: Nodes
+  setNodes: SetStoreFunction<Nodes>
   edges: EdgeType[]
+  setEdges: SetStoreFunction<Nodes>
   selectedNodeId: string
 }) {
-  const [nodes, setNodes] = createStore(props.nodes)
+  // const [nodes, setNodes] = createStore(props.nodes)
+  /* const [nodes, setNodes] = createStore(props.nodes)
   const [edges, setEdges] = createStore(props.edges)
+
+  createEffect(() => {
+    console.log('props.nodes', props.nodes)
+    setNodes(produce(() => ({ ...props.nodes })))
+    setEdges(produce(() => ({ ...props.edges })))
+  }) */
 
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -68,7 +77,7 @@ export default function Network(props: {
         })
 
   const onDrop = (start: HandleType, end: HandleType) =>
-    validateDrop(start, end) && setEdges(edges => [...edges, { start, end }])
+    validateDrop(start, end) && props.setEdges(edges => [...edges, { start, end }])
 
   return (
     <Graph
@@ -78,7 +87,7 @@ export default function Network(props: {
       class={styles.graph}
     >
       <Html.Destination>
-        <For each={edges}>
+        <For each={props.edges}>
           {edge => (
             <Edge start={edge.start} end={edge.end}>
               {(start, end) => <Step start={start} end={end} />}
@@ -87,12 +96,12 @@ export default function Network(props: {
         </For>
       </Html.Destination>
       <Html>
-        <For each={Object.entries(nodes)}>
+        <For each={Object.entries(props.nodes)}>
           {([nodeId, node]) => (
             <Node
               position={node.position}
               id={nodeId}
-              onMove={position => setNodes(nodeId, { position })}
+              onMove={position => props.setNodes(nodeId, { position })}
               class={clsx(styles.node, nodeId === props.selectedNodeId && styles.selected)}
               tabIndex={0}
             >
