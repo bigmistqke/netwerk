@@ -263,7 +263,7 @@ const intermediaryToCode = (
   ctx: Ctx,
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
-): [func: string, arg: string] => {
+): [func: string, arg: string] | [empty: '', result: string | number] => {
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
@@ -308,7 +308,7 @@ const intermediaryToCode = (
         
         currently we are dynamically linking, without any typechecks.
       */
-      const [callback, arg] = intermediaryToCode(ctx, prop, cache)
+      const [, arg] = intermediaryToCode(ctx, prop, cache)
       if (node?.visited) {
         node.used = true
         argString += `__node__${node.id}`
@@ -325,6 +325,10 @@ const intermediaryToCode = (
     argString += ','
   }
   argString += '}, ctx })'
+
+  if (intermediary.pure) {
+    return ['', eval([funcString, argString].join(''))]
+  }
 
   return [funcString, argString]
 }
