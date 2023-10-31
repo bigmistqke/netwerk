@@ -10,6 +10,45 @@ import styles from './App.module.css'
 import { IconButton } from './components/IconButton'
 import { LabelButton } from './components/LabelButton'
 
+const std = {
+  add: {
+    func: args => args.a + args.b,
+    returnType: 'number',
+    parameters: {
+      a: {
+        type: 'number',
+        value: 0,
+      },
+      b: {
+        type: 'number',
+        value: 0,
+      },
+    },
+  },
+  multiply: {
+    func: args => args.a * args.b,
+    returnType: 'number',
+    parameters: {
+      a: {
+        type: 'number',
+        value: 0,
+      },
+      b: {
+        type: 'number',
+        value: 0,
+      },
+    },
+  },
+} satisfies Package
+
+export const ctx: {
+  std: typeof std
+  self: Package
+} & Record<string, Package> = {
+  std,
+  self: {} as Package,
+}
+
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ packageId: keyof typeof ctx; atomId: string }>({
     packageId: 'self',
@@ -18,42 +57,6 @@ const App: Component = () => {
 
   const [value, setValue] = createSignal(2)
   const [value2, setValue2] = createSignal(2)
-
-  const std = {
-    add: {
-      func: args => args.a + args.b,
-      returnType: 'number',
-      parameters: {
-        a: {
-          type: 'number',
-          value: 0,
-        },
-        b: {
-          type: 'number',
-          value: 0,
-        },
-      },
-    },
-    multiply: {
-      func: args => args.a * args.b,
-      returnType: 'number',
-      parameters: {
-        a: {
-          type: 'number',
-          value: 0,
-        },
-        b: {
-          type: 'number',
-          value: 0,
-        },
-      },
-    },
-  } satisfies Package
-
-  const ctx = {
-    std,
-    self: {} as Package,
-  }
 
   setTimeout(() => {
     batch(() => {
@@ -66,7 +69,10 @@ const App: Component = () => {
     main: {
       nodes: {
         sum: {
-          ...ctx.std.add,
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
           parameters: {
             ...ctx.std.add.parameters,
             a: {
@@ -80,7 +86,10 @@ const App: Component = () => {
           },
         },
         sum2: {
-          ...ctx.std.add,
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
           parameters: {
             ...ctx.std.add.parameters,
             a: {
@@ -98,7 +107,10 @@ const App: Component = () => {
           },
         },
         sum3: {
-          ...ctx.std.add,
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
           parameters: {
             ...ctx.std.add.parameters,
             a: {
@@ -116,7 +128,10 @@ const App: Component = () => {
           },
         },
         sum4: {
-          ...ctx.std.add,
+          atom: {
+            packageId: 'std',
+            atomId: 'add',
+          },
           parameters: {
             ...ctx.std.add.parameters,
             a: {
@@ -134,7 +149,10 @@ const App: Component = () => {
           },
         },
         multiply: {
-          ...ctx.std.multiply,
+          atom: {
+            packageId: 'std',
+            atomId: 'multiply',
+          },
           parameters: {
             a: {
               type: 'number',
@@ -194,7 +212,7 @@ const App: Component = () => {
         // we can not directly return compileGraph
         // because otherwise we wouldn't catch it
         // if it would throw
-        const result = compileGraph(selectedAtom())
+        const result = compileGraph(ctx, selectedAtom())
         return result
       } catch (error) {
         console.error('error while compiling graph:', error)

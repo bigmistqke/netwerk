@@ -1,4 +1,5 @@
-import type { Atom, Edge, Func, Nodes } from './types'
+import { ctx } from './App'
+import type { Atom, AtomPath, Edge, Func, Nodes } from './types'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | (() => T[TKey])
@@ -148,7 +149,7 @@ class Network {
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
     T extends (props: TProps) => any,
-  >(atom: T, props: PropsAccessor) {
+  >(atom: T | undefined, props: PropsAccessor) {
     const node = new Node(atom, props)
     this.nodes.push(node)
     return node
@@ -186,20 +187,31 @@ class Network {
 const $PARAM = Symbol('parameter')
 const isParameter = (value: any) => typeof value === 'object' && $PARAM in value
 
-const createIntermediaryFromGraph = (graph: {
-  nodes: Nodes
-  edges: Edge[]
-  selectedNodeId: keyof Nodes
-}) => {
+/**
+ *
+ */
+const getFuncFromContext = (context: typeof ctx, path: AtomPath): Func | undefined =>
+  context[path.packageId]?.[path.atomId]?.func
+
+const createIntermediaryFromGraph = (
+  context: typeof ctx,
+  graph: {
+    nodes: Nodes
+    edges: Edge[]
+    selectedNodeId: keyof Nodes
+  },
+) => {
   /* reset uuid */
   uuid = { ...uuid_reset }
   const network = new Network()
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes).map(([nodeId, node]) => {
+      const func = getFuncFromContext(context, node.atom)
+      if (!func) throw 'could not find func'
       return [
         nodeId,
         network.createNode(
-          node.func,
+          func,
           Object.fromEntries(
             Object.entries(node.parameters).map(([id, parameter]) => {
               return [
@@ -274,9 +286,13 @@ const intermediaryToCode = (
   return string
 }
 
-export const compileGraph = (graph: Atom) => {
+/**
+ * compiles NetworkAtom to a single function. simply returns CodeAtom's func-property.
+ * @throws `!WARNING!` `!CAN THROW!` `!WARNING!`
+ */
+export const compileGraph = (context: typeof ctx, graph: Atom) => {
   let start = performance.now()
-  const code = 'nodes' in graph && createIntermediaryFromGraph(graph).toCode()
+  const code = 'nodes' in graph && createIntermediaryFromGraph(context, graph).toCode()
   return {
     func: code ? eval(code) : graph.func,
     time: performance.now() - start,

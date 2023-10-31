@@ -1,7 +1,13 @@
 import { Vector } from '@lib/spagett/types'
+import { ctx } from './App'
 
 export type Func = (...args: any[]) => any
 export type DataType = 'string' | 'number' | 'parameter'
+
+export type AtomPath = {
+  packageId: keyof typeof ctx
+  atomId: string
+}
 
 export interface CodeAtom {
   func: (props: Record<string, Exclude<any, Function>>) => any
@@ -18,8 +24,9 @@ export interface NetworkAtom extends CodeAtom {
 
 export type Atom = CodeAtom | NetworkAtom
 
-export type Node = Atom & {
+export type Node = Omit<Atom, 'func' | 'returnType'> & {
   position: Vector
+  atom: AtomPath
 }
 export type Nodes = Record<string, Node>
 
