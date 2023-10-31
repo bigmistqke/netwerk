@@ -49,7 +49,9 @@ body.panning * {
 * {
   font-family: var(--font);
   color: var(--color-front);
-  transition: border-color 0.25s, background 0.5s, outline 0.125s, fill 0.125s;
+  &:not(body) {
+    transition: border-color 0.25s, background 0.5s, outline 0.125s, fill 0.125s;
+  }
 }
 
 code {
