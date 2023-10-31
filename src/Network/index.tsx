@@ -43,16 +43,6 @@ export default function Network(props: {
   setEdges: SetStoreFunction<Nodes>
   selectedNodeId: string
 }) {
-  // const [nodes, setNodes] = createStore(props.nodes)
-  /* const [nodes, setNodes] = createStore(props.nodes)
-  const [edges, setEdges] = createStore(props.edges)
-
-  createEffect(() => {
-    console.log('props.nodes', props.nodes)
-    setNodes(produce(() => ({ ...props.nodes })))
-    setEdges(produce(() => ({ ...props.edges })))
-  }) */
-
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
     end: Vector | HandleType

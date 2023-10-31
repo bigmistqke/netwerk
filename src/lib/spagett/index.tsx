@@ -381,7 +381,6 @@ const useGraphToAnchor = () => useContext(currentHandleContext)
 
 export const getHandlePosition = (nodeId: string, handleId: string) => {
   const graphContext = useGraph()
-  console.log('graphContext', graphContext)
   return graphContext?.sceneGraph[nodeId]?.[handleId]?.position
 }
 

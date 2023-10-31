@@ -167,7 +167,6 @@ const App: Component = () => {
 
   let atomId = 0
   const addAtomToSelf = () => {
-    console.log('addAtomToSelf')
     setSelf('atom' + atomId++, {
       nodes: {
         sum: {
