@@ -36,7 +36,11 @@ const Step = (props: { start: Vector; end: Vector }) => {
 /**
  * Network mutates the nodes- and edges-store
  * */
-export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
+export default function Network(props: {
+  nodes: Nodes
+  edges: EdgeType[]
+  selectedNodeId: string
+}) {
   const [nodes, setNodes] = createStore(props.nodes)
   const [edges, setEdges] = createStore(props.edges)
 
@@ -89,7 +93,7 @@ export default function Network(props: { nodes: Nodes; edges: EdgeType[] }) {
               position={node.position}
               id={nodeId}
               onDrag={position => setNodes(nodeId, { position })}
-              class={styles.node}
+              class={clsx(styles.node, nodeId === props.selectedNodeId && styles.selected)}
             >
               <div class={styles.handles}>
                 <Index each={Object.entries(node.parameters)}>

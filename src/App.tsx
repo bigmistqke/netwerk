@@ -231,7 +231,7 @@ const App: Component = () => {
       </div>
       <div class={styles.panel}>
         <Show when={'nodes' in selectedAtom() && (selectedAtom() as NetworkAtom)}>
-          {atom => <Network nodes={atom().nodes} edges={self.main.edges} />}
+          {atom => <Network {...atom()} />}
         </Show>
       </div>
       <div class={styles.panel}>
