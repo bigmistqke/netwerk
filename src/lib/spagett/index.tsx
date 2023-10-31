@@ -269,7 +269,7 @@ export function Handle(
 /* ANCHOR */
 
 export function Anchor(props: {
-  children: JSX.Element
+  children?: JSX.Element
   position?: Vector
   style: JSX.CSSProperties
 }) {
@@ -305,6 +305,7 @@ export const Edge = (props: {
   start: { handleId: string; nodeId: string } | Vector
   end: { handleId: string; nodeId: string } | Vector
   children?: (start: Vector, end: Vector) => JSX.Element
+  class: string
 }) => {
   const graphContext = useGraph()
 
@@ -331,7 +332,13 @@ export const Edge = (props: {
     <Show
       when={start() && end() && props.children}
       fallback={
-        <line class={styles.line} x1={start()?.x} y1={start()?.y} x2={end()?.x} y2={end()?.y} />
+        <line
+          class={clsx(styles.line, props.class)}
+          x1={start()?.x}
+          y1={start()?.y}
+          x2={end()?.x}
+          y2={end()?.y}
+        />
       }
     >
       {props.children?.(start()!, end()!)}
