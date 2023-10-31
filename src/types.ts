@@ -1,11 +1,13 @@
 import { Vector } from '@lib/spagett/types'
-import { ctx } from './App'
+import type { Ctx } from './ctx'
+
+export type { Ctx } from './ctx'
 
 export type Func = (...args: any[]) => any
 export type DataType = 'string' | 'number' | 'parameter'
 
 export type AtomPath = {
-  packageId: keyof typeof ctx
+  packageId: keyof Ctx
   atomId: string
 }
 

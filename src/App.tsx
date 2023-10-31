@@ -4,53 +4,15 @@ import { createStore } from 'solid-js/store'
 
 import Network from './Network/index'
 import { compileGraph } from './compilation'
-import type { Func, NetworkAtom, Package } from './types'
-
-import styles from './App.module.css'
 import { IconButton } from './components/IconButton'
 import { LabelButton } from './components/LabelButton'
+import { ctx } from './ctx'
+import type { Ctx, Func, NetworkAtom, Package } from './types'
 
-const std = {
-  add: {
-    func: args => args.a + args.b,
-    returnType: 'number',
-    parameters: {
-      a: {
-        type: 'number',
-        value: 0,
-      },
-      b: {
-        type: 'number',
-        value: 0,
-      },
-    },
-  },
-  multiply: {
-    func: args => args.a * args.b,
-    returnType: 'number',
-    parameters: {
-      a: {
-        type: 'number',
-        value: 0,
-      },
-      b: {
-        type: 'number',
-        value: 0,
-      },
-    },
-  },
-} satisfies Package
-
-export const ctx: {
-  std: typeof std
-  self: Package
-} & Record<string, Package> = {
-  std,
-  self: {} as Package,
-}
+import styles from './App.module.css'
 
 const App: Component = () => {
-  const [selected, setSelected] = createSignal<{ packageId: keyof typeof ctx; atomId: string }>({
+  const [selected, setSelected] = createSignal<{ packageId: keyof Ctx; atomId: string }>({
     packageId: 'self',
     atomId: 'main',
   })
@@ -249,9 +211,7 @@ const App: Component = () => {
                       <IconButton
                         icon={<AiFillTool />}
                         label="edit"
-                        onClick={() =>
-                          setSelected({ packageId: packageId as keyof typeof ctx, atomId })
-                        }
+                        onClick={() => setSelected({ packageId: packageId as keyof Ctx, atomId })}
                       />
                     </LabelButton>
                   </li>
@@ -270,12 +230,13 @@ const App: Component = () => {
         <h2>Compilation</h2>
         <div
           class={styles.panel__code}
-          innerHTML={`(${compiledGraph().func.toString()})(${JSON.stringify(params)})`}
+          innerHTML={`(${compiledGraph().func.toString()}
+)(${JSON.stringify(ctx, null, 2)}), ${JSON.stringify(params, null, 2)}`}
         />
         <h2>Compilation Time</h2>
         <div>{compiledGraph().time.toFixed(3)}ms</div>
         <h2>Result</h2>
-        <div>{compiledGraph().func(params)}</div>
+        <div>{compiledGraph().func(ctx, params)}</div>
       </div>
     </div>
   )
