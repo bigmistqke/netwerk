@@ -8,17 +8,21 @@
   border-right: none;
 }
 .panel {
+  position: relative;
   display: grid;
   grid-template-rows: auto 1fr;
-  border-right: 1px solid var(--color-grey-dark);
   gap: var(--margin);
+
+  border-right: 1px solid var(--color-grey-dark);
   overflow: hidden;
 }
+
 .panel:not(:has(.panel)) > div {
   padding: var(--margin);
 }
 
-.panel:has(> *:only-child) {
+.panel:has(> *:only-child),
+.panel.panel__network {
   grid-template-rows: 1fr;
 }
 
@@ -42,4 +46,10 @@
   padding: var(--margin);
   display: flex;
   gap: 5px;
+}
+
+.darkModeToggle {
+  position: absolute;
+  right: 0px;
+  z-index: 10;
 }

@@ -9,7 +9,9 @@ import { LabelButton } from './components/LabelButton'
 import { ctx } from './ctx'
 import type { Atom, Ctx, Func, NetworkAtom } from './types'
 
+import clsx from 'clsx'
 import styles from './App.module.css'
+import { Toggle } from './components/Switch'
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ packageId: keyof Ctx; atomId: string }>({
@@ -195,6 +197,10 @@ const App: Component = () => {
   const castToNetworkAtomIfPossible = (atom: Atom | undefined) =>
     atom && 'nodes' in atom && (atom as NetworkAtom)
 
+  console.log('matchMedia', window.matchMedia?.('prefers-color-scheme: dark'))
+  const isDarkMode = () =>
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+
   return (
     <div class={styles.panels}>
       <div class={styles.panel}>
@@ -223,7 +229,20 @@ const App: Component = () => {
           ))}
         </div>
       </div>
-      <div class={styles.panel}>
+      <div class={clsx(styles.panel, styles.panel__network)}>
+        <Toggle
+          class={styles.darkModeToggle}
+          checked={isDarkMode()}
+          onChange={checked => {
+            if (checked) {
+              document.body.classList.remove('dark')
+              document.body.classList.add('light')
+            } else {
+              document.body.classList.add('dark')
+              document.body.classList.remove('light')
+            }
+          }}
+        />
         <Show when={castToNetworkAtomIfPossible(selectedAtom())}>
           {atom => <Network {...atom()} />}
         </Show>

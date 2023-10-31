@@ -41,7 +41,8 @@
   }
 
   &:hover,
-  &:focus {
+  &:focus,
+  &:focus-within {
     border-color: var(--color-front);
     outline: none;
   }

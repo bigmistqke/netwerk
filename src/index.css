@@ -23,17 +23,26 @@
     --color-front: rgb(250, 250, 250);
     --color-back: rgb(0, 0, 0);
   }
+  body.light {
+    --color-back: rgb(250, 250, 250);
+    --color-front: rgb(0, 0, 0);
+  }
 }
 
 body {
   margin: 0;
   font-size: 11pt;
-  background: var(--color-back);
+  background-color: var(--color-back);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
+}
+
+body.dark {
+  --color-front: rgb(250, 250, 250);
+  --color-back: rgb(0, 0, 0);
 }
 
 body.panning * {
@@ -50,7 +59,7 @@ body.panning * {
   font-family: var(--font);
   color: var(--color-front);
   &:not(body) {
-    transition: border-color 0.25s, background 0.5s, outline 0.125s, fill 0.125s;
+    transition: border-color 0.25s, outline 0.125s, fill 0.125s;
   }
 }
 
