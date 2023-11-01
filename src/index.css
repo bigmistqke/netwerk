@@ -8,7 +8,8 @@
 }
 
 :root {
-  --margin: 6px;
+  --margin: 12px;
+  --margin-50: 6px;
   --mono: mono;
   --font: geist;
   --color-back: rgb(250, 250, 250);
@@ -16,11 +17,12 @@
   --color-grey-light: rgb(187.5, 187.5, 187.5);
   --color-grey: rgb(125, 125, 125);
   --color-grey-dark: rgb(62.5, 62.5, 62.5);
+  --radius: 9px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-front: rgb(250, 250, 250);
+    --color-front: rgb(188, 188, 188);
     --color-back: rgb(0, 0, 0);
   }
   body.light {
@@ -73,7 +75,89 @@ h3,
 h4,
 ul,
 li,
-button {
+button,
+input {
   all: unset;
   user-select: none;
+}
+
+.popover__trigger {
+  appearance: none;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  height: 40px;
+  width: auto;
+  outline: none;
+  border-radius: 6px;
+  padding: 0 16px;
+  background-color: hsl(200 98% 39%);
+  color: white;
+  font-size: 16px;
+  line-height: 0;
+  transition: 250ms background-color;
+}
+.popover__trigger:hover {
+  background-color: hsl(201 96% 32%);
+}
+.popover__trigger:focus-visible {
+  outline: 2px solid hsl(200 98% 39%);
+  outline-offset: 2px;
+}
+.popover__trigger:active {
+  background-color: hsl(201 90% 27%);
+}
+.popover__content {
+  z-index: 50;
+  max-width: min(calc(100vw - 16px), 380px);
+  border: 1px solid hsl(240 5% 84%);
+  border-radius: 6px;
+  padding: 12px;
+  background-color: white;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  transform-origin: var(--kb-popover-content-transform-origin);
+  animation: contentHide 250ms ease-in forwards;
+}
+.popover__content[data-expanded] {
+  animation: contentShow 250ms ease-out;
+}
+.popover__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.popover__close-button {
+  height: 16px;
+  width: 16px;
+  color: hsl(240 5% 34%);
+}
+.popover__title {
+  font-size: 16px;
+  font-weight: 500;
+  color: hsl(240 6% 10%);
+}
+.popover__description {
+  font-size: 14px;
+  color: hsl(240 5% 26%);
+}
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes contentHide {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
 }

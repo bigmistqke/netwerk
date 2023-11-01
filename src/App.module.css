@@ -10,26 +10,19 @@
 .panel {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr;
-  gap: var(--margin);
 
-  border-right: 1px solid var(--color-grey-dark);
+  border-right: 1px solid var(--color-front);
   overflow: hidden;
 }
 
-.panel:not(:has(.panel)) > div {
-  padding: var(--margin);
+.panel:not(.panel__network) {
+  grid-template-rows: auto 1fr;
 }
 
-.panel:has(> *:only-child),
-.panel.panel__network {
-  grid-template-rows: 1fr;
-}
-
-.panel h2,
-.panel h3 {
+.panel > h2,
+.panel > h3,
+.panel .title {
   padding: var(--margin);
-  border-bottom: 1px solid var(--color-grey-dark);
 }
 
 .panel__code {
@@ -37,7 +30,7 @@
   font-size: 8pt;
   font-family: var(--mono);
   white-space: pre-wrap;
-  padding: calc(var(--margin) * 2) !important;
+  padding: var(--margin);
   cursor: text;
   overflow: auto;
 }
@@ -49,9 +42,14 @@
   flex-wrap: wrap;
 }
 
+.panelContent {
+  padding: var(--margin-50) calc(var(--margin) * 2);
+}
+
 .darkModeToggle {
   position: absolute;
   right: 0px;
+  bottom: 0px;
   z-index: 10;
 }
 
@@ -64,5 +62,31 @@
     width: 17px;
     text-align: center;
     border-radius: 50%;
+  }
+}
+
+.parameterPanel {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--margin);
+
+  margin: var(--margin-50);
+  padding: var(--margin);
+
+  background: var(--color-back);
+  border: 1px solid var(--color-front);
+  border-radius: var(--radius);
+  z-index: 10;
+}
+.parameterRow {
+  display: grid;
+  grid-template-columns: 0.75fr 1fr;
+  font-size: 10pt;
+  & input {
+    width: 75px;
   }
 }

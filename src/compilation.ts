@@ -355,7 +355,6 @@ const intermediaryToCode = (
 export const compileGraph = (ctx: Ctx, graph: Atom) => {
   let start = performance.now()
   const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph).toCode(ctx)
-  console.info('code is ', code)
   return {
     func: code ? eval(code) : graph.func,
     time: performance.now() - start,

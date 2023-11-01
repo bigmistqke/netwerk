@@ -1,0 +1,12 @@
+.titleContainer {
+  padding: var(--margin) var(--margin);
+  display: flex;
+  flex-direction: column;
+  gap: var(--margin-50);
+}
+
+.title {
+  display: flex;
+  margin-left: var(--margin-50);
+  margin-right: var(--margin-50);
+}

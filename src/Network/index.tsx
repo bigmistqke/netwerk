@@ -1,4 +1,5 @@
 import { ContextMenu } from '@kobalte/core'
+
 import { ComponentProps, For, Index, Match, Show, Switch, createSignal, splitProps } from 'solid-js'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
@@ -9,6 +10,7 @@ import type {
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
+  PropsNode,
 } from 'src/types'
 
 import clsx from 'clsx'
@@ -41,20 +43,50 @@ const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) =
   )
 }
 
+const PropsNodeContextMenu = (props: {
+  props: Atom['props']
+  setProps: (props: Atom['props']) => void
+  removeNode: () => void
+}) => {
+  return (
+    <>
+      <ContextMenu.Portal>
+        <ContextMenu.Content class={styles['context-menu__content']}>
+          <ContextMenu.Item class={styles['context-menu__item']} closeOnSelect={false}>
+            Edit Properties
+          </ContextMenu.Item>
+          <ContextMenu.Separator class={styles['context-menu__separator']} />
+          <ContextMenu.Item class={styles['context-menu__item']}>Duplicate</ContextMenu.Item>
+          <ContextMenu.Item onClick={props.removeNode} class={styles['context-menu__item']}>
+            Delete
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </>
+  )
+}
+
 const PropsNode = (props: {
   atomId: string
   nodeId: string
+  onDrop: (start: HandleType, end: HandleType) => void
   onDragHandle: (
     handle: HandleType,
     position: Vector,
     hoveringHandle: HandleType | undefined,
   ) => void
   props: Atom['props']
+  removeNode: () => void
   setTemporaryEdges: (edge: EdgeType | undefined) => void
-  onDrop: (start: HandleType, end: HandleType) => void
+  setProps: (props: Partial<Atom['props']>) => void
 }) => {
   return (
     <>
+      <PropsNodeContextMenu
+        props={props.props}
+        setProps={props.setProps}
+        removeNode={props.removeNode}
+      />
       <div class={styles.nodeName}>Props</div>
       <div class={clsx(styles.handles, styles.out)}>
         <Index each={Object.entries(props.props)}>
@@ -88,15 +120,24 @@ const PropsNode = (props: {
   )
 }
 
-const AtomNodeContextMenu = (props: { selectNode: () => void }) => {
+const AtomNodeContextMenu = (props: {
+  selected: boolean
+  selectNode: () => void
+  removeNode: () => void
+}) => {
   return (
     <>
       <ContextMenu.Portal>
         <ContextMenu.Content class={styles['context-menu__content']}>
+          <Show when={!props.selected}>
+            <ContextMenu.Item class={styles['context-menu__item']} onClick={props.selectNode}>
+              Watch <div class={styles['context-menu__item-right-slot']}>⌘+W</div>
+            </ContextMenu.Item>
+            <ContextMenu.Separator class={styles['context-menu__separator']} />
+          </Show>
           <ContextMenu.Item
             class={styles['context-menu__item']}
             onChange={e => {
-              console.log('clicked')
               e.stopPropagation()
               e.preventDefault()
             }}
@@ -106,11 +147,10 @@ const AtomNodeContextMenu = (props: { selectNode: () => void }) => {
           </ContextMenu.Item>
           <ContextMenu.Item class={styles['context-menu__item']}>Edit Network</ContextMenu.Item>
           <ContextMenu.Separator class={styles['context-menu__separator']} />
-          <ContextMenu.Item class={styles['context-menu__item']} onClick={props.selectNode}>
-            Watch
-          </ContextMenu.Item>
           <ContextMenu.Item class={styles['context-menu__item']}>Duplicate</ContextMenu.Item>
-          <ContextMenu.Item class={styles['context-menu__item']}>Delete</ContextMenu.Item>
+          <ContextMenu.Item class={styles['context-menu__item']} onClick={props.removeNode}>
+            Delete
+          </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </>
@@ -118,6 +158,7 @@ const AtomNodeContextMenu = (props: { selectNode: () => void }) => {
 }
 
 const AtomNode = (props: {
+  selected: boolean
   node: AtomNodeType
   nodeId: string
   onDragHandle: (
@@ -128,10 +169,15 @@ const AtomNode = (props: {
   setTemporaryEdges: (edge: EdgeType | undefined) => void
   onDrop: (start: HandleType, end: HandleType) => void
   selectNode: () => void
+  removeNode: () => void
 }) => {
   return (
     <>
-      <AtomNodeContextMenu selectNode={props.selectNode} />
+      <AtomNodeContextMenu
+        selected={props.selected}
+        selectNode={props.selectNode}
+        removeNode={props.removeNode}
+      />
       <div class={styles.handles}>
         <Index each={Object.entries(props.node.props)}>
           {handleEntry => {
@@ -201,7 +247,11 @@ export default function Network(props: {
   /* GRAPH MUTATIONS */
   const moveNode = (nodeId: string, position: Vector) =>
     props.setAtom('nodes', nodeId, { position })
-  const removeNode = (nodeId: string) => props.setAtom('nodes', nodeId, undefined)
+  const removeNode = (nodeId: string) => {
+    props.setAtom('nodes', nodeId, undefined)
+    removeEdgeFromNodeId(nodeId)
+  }
+  const selectNode = (nodeId: string) => props.setAtom('selectedNodeId', nodeId)
 
   const removeEdgeFromIndex = (index: number) =>
     props.setAtom('edges', x => {
@@ -275,25 +325,28 @@ export default function Network(props: {
                   )}
                   tabIndex={0}
                   onDblClick={() => {
-                    if (nodeId === props.atom.selectedNodeId) {
-                      /* TODO: add error-indicator in ui. */
-                      console.error('can not remove selected node.')
-                      return
-                    }
-                    removeEdgeFromNodeId(nodeId)
-                    removeNode(nodeId)
+                    // if (nodeId === props.atom.selectedNodeId) {
+                    //   /* TODO: add error-indicator in ui. */
+                    //   console.error('can not remove selected node.')
+                    //   return
+                    // }
+                    // removeEdgeFromNodeId(nodeId)
+                    // removeNode(nodeId)
+                    selectNode(nodeId)
                   }}
                 >
                   <Switch>
                     <Match when={node.type === 'atom' && node}>
                       {node => (
                         <AtomNode
+                          selected={nodeId === props.atom.selectedNodeId}
                           node={node()}
                           nodeId={nodeId}
                           onDragHandle={onDragHandle}
                           setTemporaryEdges={setTemporaryEdges}
                           onDrop={onDropHandle}
                           selectNode={() => props.setAtom('selectedNodeId', nodeId)}
+                          removeNode={() => removeNode(nodeId)}
                         />
                       )}
                     </Match>
@@ -305,6 +358,8 @@ export default function Network(props: {
                         onDragHandle={onDragHandle}
                         setTemporaryEdges={setTemporaryEdges}
                         onDrop={onDropHandle}
+                        setProps={_props => props.setAtom('props', _props)}
+                        removeNode={() => removeNode(nodeId)}
                       />
                     </Match>
                   </Switch>
