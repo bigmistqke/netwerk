@@ -33,6 +33,13 @@
   padding: var(--margin);
   cursor: text;
   overflow: auto;
+
+  & span {
+    font-family: var(--mono);
+  }
+  & span:not(:first-child) {
+    opacity: 0.7;
+  }
 }
 
 .panel ul {
@@ -50,6 +57,7 @@
   position: absolute;
   right: 0px;
   bottom: 0px;
+  margin: var(--margin-50);
   z-index: 10;
 }
 

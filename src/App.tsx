@@ -296,12 +296,17 @@ const App: Component = () => {
       </div>
       <div class={styles.panel}>
         <Title title="Compilation" />
-        <div
-          class={styles.panel__code}
-          innerHTML={`(${compiledGraph().func.toString()})
-({ "props": ${JSON.stringify(resolveProps(), null, 2)}, "ctx": ${JSON.stringify(ctx, null, 2)}
+        <div class={styles.panel__code}>
+          <span innerHTML={`(${compiledGraph().func.toString()})`} />
+          <span
+            innerHTML={`({ "props": ${JSON.stringify(
+              resolveProps(),
+              null,
+              2,
+            )}, "ctx": ${JSON.stringify(ctx, null, 2)}
 })`}
-        />
+          />
+        </div>
         <Title title="Compilation Time" />
         <div class={styles.panelContent}>{compiledGraph().time.toFixed(3)}ms</div>
         <Title title="Result" />
