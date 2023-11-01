@@ -128,6 +128,7 @@
 
 .nodeName {
   padding: 5px;
+  white-space: nowrap;
 }
 
 .edge {

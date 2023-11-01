@@ -9,6 +9,7 @@ import {
   Switch,
   createEffect,
   createMemo,
+  createRenderEffect,
   createSignal,
   splitProps,
 } from 'solid-js'
@@ -16,6 +17,7 @@ import type { SetStoreFunction } from 'solid-js/store'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
+import { useCtx } from '../App'
 import { compileGraph } from '../compilation'
 import type {
   Atom,
@@ -117,7 +119,7 @@ const PropsNode = (props: {
                 type="prop"
                 onMoveEnd={() => props.setTemporaryEdges(undefined)}
                 onConnect={handle =>
-                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId })
+                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId, type: 'prop' })
                 }
                 class={styles.handle}
                 id={handleId}
@@ -150,8 +152,6 @@ const RendererNode = (props: {
   setTemporaryEdges: (edge: EdgeType | undefined) => void
   setProps: (props: Partial<Atom['props']>) => void
 }) => {
-  console.log('props.node', props.node)
-
   const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
       try {
@@ -198,9 +198,11 @@ const RendererNode = (props: {
 }
 
 const AtomNodeContextMenu = (props: {
+  emits: boolean
   selected: boolean
   selectNode: () => void
   removeNode: () => void
+  toggleEmit: () => void
 }) => {
   return (
     <>
@@ -210,8 +212,13 @@ const AtomNodeContextMenu = (props: {
             <ContextMenu.Item class={styles['context-menu__item']} onClick={props.selectNode}>
               Watch <div class={styles['context-menu__item-right-slot']}>⌘+W</div>
             </ContextMenu.Item>
-            <ContextMenu.Separator class={styles['context-menu__separator']} />
           </Show>
+          <ContextMenu.Item class={styles['context-menu__item']} onClick={props.toggleEmit}>
+            <Show when={props.emits} fallback="Emit">
+              Stop Emitting
+            </Show>
+          </ContextMenu.Item>
+          <ContextMenu.Separator class={styles['context-menu__separator']} />
           <ContextMenu.Item
             class={styles['context-menu__item']}
             onChange={e => {
@@ -247,13 +254,25 @@ const AtomNode = (props: {
   onDrop: (start: HandleType, end: HandleType) => void
   selectNode: () => void
   removeNode: () => void
+  toggleEmit: () => void
 }) => {
+  const [value, setValue] = createSignal()
+  const ctx = useCtx()
+
+  createRenderEffect(() => {
+    if (props.node.emits) {
+      ctx.event.addListener(props.nodeId, value => setValue(value))
+    }
+  })
+
   return (
     <>
       <AtomNodeContextMenu
+        emits={props.node.emits}
         selected={props.selected}
         selectNode={props.selectNode}
         removeNode={props.removeNode}
+        toggleEmit={props.toggleEmit}
       />
       <div class={styles.handles}>
         <Index each={Object.entries(props.node.props)}>
@@ -271,7 +290,7 @@ const AtomNode = (props: {
                 type="input"
                 onMoveEnd={() => props.setTemporaryEdges(undefined)}
                 onConnect={handle =>
-                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId })
+                  props.onDrop(handle, { nodeId: props.nodeId, handleId: handleId, type: 'input' })
                 }
                 class={styles.handle}
                 id={handleId}
@@ -284,8 +303,15 @@ const AtomNode = (props: {
         </Index>
       </div>
       <div class={styles.nodeName}>
-        {props.node.path?.atomId.charAt(0).toUpperCase() + props.node.path?.atomId.slice(1)}
+        <span>
+          {props.node.path?.atomId.charAt(0).toUpperCase() + props.node.path?.atomId.slice(1)}
+        </span>
+        <span>
+          {'  '}
+          <Show when={props.node.emits && value()}>{value()}</Show>
+        </span>
       </div>
+
       <div class={clsx(styles.handles, styles.out)}>
         <Handle
           onMove={(position, hoveringHandle) =>
@@ -297,7 +323,9 @@ const AtomNode = (props: {
           }
           type="output"
           onMoveEnd={() => props.setTemporaryEdges(undefined)}
-          onConnect={handle => props.onDrop(handle, { nodeId: props.nodeId, handleId: 'output' })}
+          onConnect={handle =>
+            props.onDrop(handle, { nodeId: props.nodeId, handleId: 'output', type: 'output' })
+          }
           id="output"
           class={styles.handle}
         >
@@ -330,6 +358,7 @@ export default function Network(props: {
     removeEdgeFromNodeId(nodeId)
   }
   const selectNode = (nodeId: string) => props.setAtom('selectedNodeId', nodeId)
+  const toggleEmitNode = (nodeId: string) => props.setAtom('nodes', nodeId, 'emits', b => !b)
 
   const removeEdgeFromIndex = (index: number) =>
     props.setAtom('edges', x => {
@@ -341,7 +370,6 @@ export default function Network(props: {
       edges.filter(edge => edge.end.nodeId !== nodeId && edge.start.nodeId !== nodeId),
     )
   const addEdge = (edge: EdgeType) => {
-    console.log('add edge!')
     props.setAtom('edges', edges => [...edges, edge])
   }
 
@@ -428,6 +456,7 @@ export default function Network(props: {
                           onDrop={onDropHandle}
                           selectNode={() => props.setAtom('selectedNodeId', nodeId)}
                           removeNode={() => removeNode(nodeId)}
+                          toggleEmit={() => toggleEmitNode(nodeId)}
                         />
                       )}
                     </Match>

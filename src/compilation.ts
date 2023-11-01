@@ -13,6 +13,7 @@ type NodeCache = {
   visited: boolean
   intermediary: any
   used: boolean
+  emits: boolean
 }
 type CompilationCache = {
   atom: Map<Func, FunctionCache>
@@ -72,11 +73,14 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   atom: T
   path: AtomPath
   props: PropsAccessor<TProps>
-  id = ++uuid.node
+  id: string
+  emits = false
   updateProps: (props: Partial<PropsAccessor<TProps>>) => void
-  constructor(path: AtomPath, atom: T, props: PropsAccessor<TProps>) {
+  constructor(id: string, path: AtomPath, atom: T, props: PropsAccessor<TProps>, emits: boolean) {
+    this.id = id
     this.path = path
     this.atom = atom
+    this.emits = emits
     this.props = { ...props }
     this.updateProps = props => (this.props = { ...this.props, ...props })
   }
@@ -106,8 +110,9 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       }
 
       /* this prop is a Node */
-      if (typeof prop === 'object' && 'exec' in prop) {
-        const node_cache = cache.node.get(prop as Node)
+
+      if (/* typeof prop === 'object' && 'exec' in prop */ prop instanceof Node) {
+        const node_cache = cache.node.get(prop)
         if (node_cache) {
           /* 
             The prop/node was already initialized in nodeMap:
@@ -118,17 +123,18 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           node_cache.visited = true
         }
 
-        const intermediary = (prop as Node).toIntermediary({ cache, ctx })
+        const intermediary = prop.toIntermediary({ cache, ctx })
 
         if (!node_cache) {
           /* 
             we initialize this props/node to the node-pool
           */
-          cache.node.set(prop as Node, {
-            id: (uuid.nodeCache++).toString(),
+          cache.node.set(prop, {
+            id: prop.id,
             visited: false,
             intermediary,
             used: false,
+            emits: prop.emits,
           })
         }
 
@@ -137,7 +143,12 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
-          props[key] = eval(`${(prop as Node).atom.toString()}`)({ props: intermediary.props, ctx })
+          const result = eval(`${prop.atom.toString()}`)({
+            props: intermediary.props,
+            ctx,
+          })
+          if (prop.emits) ctx.event.emit(prop.id, result)
+          props[key] = result
           continue
         }
 
@@ -171,11 +182,12 @@ class Network {
   nodes: Node[] = []
   selectedNode: Node | undefined = undefined
   selectNode = (node: Node) => (this.selectedNode = node)
+
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
     T extends (props: TProps) => any,
-  >(path: AtomPath, atom: T | undefined, props: PropsAccessor) {
-    const node = new Node(path, atom, props)
+  >(id: string, path: AtomPath, func: T | undefined, props: PropsAccessor, emits: boolean) {
+    const node = new Node(id, path, func, props, emits)
     this.nodes.push(node)
     return node
   }
@@ -206,10 +218,9 @@ class Network {
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
       .map(node => {
-        console.log('usedNodesToCode', node.intermediary)
-        return `const __node__${node.id} = ${intermediaryToCode(ctx, node.intermediary, cache).join(
-          '',
-        )};`
+        let body = intermediaryToCode(ctx, node.intermediary, cache).join('')
+        body = node.emits ? `ctx.event.emit("${node.id}", ${body})` : body
+        return `const __node__${node.id} = ${body};`
       })
 
     const body = [...usedNodesToCode, `return ${code.join('')}\n`]
@@ -243,6 +254,7 @@ const createIntermediaryFromGraph = (
         return [
           nodeId,
           network.createNode(
+            nodeId,
             node.path,
             func,
             'props' in node
@@ -267,6 +279,7 @@ const createIntermediaryFromGraph = (
                   }),
                 )
               : {},
+            node.emits,
           ),
         ]
       })
@@ -287,17 +300,15 @@ const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
 ): [func: string, arg: string] | [empty: '', result: string | number] => {
-  console.log('intermediary', intermediary)
-
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
 
   let funcString = ''
-  // funcString += `(`
-  /* if atom is in the cache it means its value is memoized */
+
+  // if (intermediary.node.emits) funcString += 'ctx.emit('
+
   funcString += generateCodeFromAtomPath(intermediary.path)
-  // funcString += ')'
 
   let argString = ''
   argString += '({props: {'
@@ -334,18 +345,19 @@ const intermediaryToCode = (
         currently we are dynamically linking, without any typechecks.
       */
 
-      console.log('in for loop ', prop)
-
       const [, arg] = intermediaryToCode(ctx, prop, cache)
+
       if (node?.visited) {
         node.used = true
         argString += `__node__${node.id}`
         argString += ','
         continue
       }
-      // string += code
-      argString += generateCodeFromAtomPath(prop.path)
-      argString += arg
+
+      let tempString = generateCodeFromAtomPath(prop.path)
+      tempString += arg
+
+      argString += prop.node.emits ? `ctx.event.emit("${prop.node.id}", ${tempString})` : tempString
       argString += ', '
       continue
     }
@@ -353,6 +365,8 @@ const intermediaryToCode = (
     argString += ','
   }
   argString += '}, ctx })'
+
+  // if (intermediary.node.emits) argString += ')'
 
   if (intermediary.pure) {
     return ['', eval([funcString, argString].join(''))]
@@ -368,6 +382,7 @@ const intermediaryToCode = (
 export const compileGraph = (ctx: Ctx, graph: Atom) => {
   let start = performance.now()
   const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph).toCode(ctx)
+  console.info('code is ', code)
   return {
     func: code ? eval(code) : graph.func,
     time: performance.now() - start,

@@ -37,6 +37,7 @@ export interface RendererAtom extends AtomBase {
 export type Atom = CodeAtom | NetworkAtom | RendererAtom
 
 interface NodeBase {
+  emits: boolean
   position: Vector
 }
 
