@@ -47,7 +47,7 @@ const App: Component = () => {
           },
           position: {
             x: 100,
-            y: 100,
+            y: 200,
           },
         },
         sum2: {
@@ -61,14 +61,14 @@ const App: Component = () => {
           },
           position: {
             x: 300,
-            y: 100,
+            y: 200,
           },
         },
         props: {
           type: 'props',
           position: {
             x: 300,
-            y: 100,
+            y: 0,
           },
         },
       },
@@ -230,12 +230,8 @@ const App: Component = () => {
           {atom => (
             <Network
               atomId={selected().atomId}
-              nodes={atom().nodes}
-              edges={atom().edges}
-              props={atom().props}
-              setNodes={(...args) => setSelf(selected().atomId, 'nodes', ...args)}
-              setEdges={(...args) => setSelf(selected().atomId, 'edges', ...args)}
-              selectedNodeId={atom().selectedNodeId}
+              atom={atom()}
+              setAtom={(...args: any[]) => setSelf(selected().atomId, ...args)}
             />
           )}
         </Show>
