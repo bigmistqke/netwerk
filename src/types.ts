@@ -7,24 +7,34 @@ export type Func = (...args: any[]) => any
 export type DataType = 'string' | 'number' | 'prop'
 
 export type AtomPath = {
-  packageId: keyof Ctx
+  libId: keyof Ctx['lib']
   atomId: string
 }
 
-export interface CodeAtom {
-  func: (props: Record<string, Exclude<any, Function>>) => any
+interface AtomBase {
+  func: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx; dom: HTMLElement }) => any
   props: Record<string, Parameter>
+}
+
+export interface CodeAtom extends AtomBase {
+  type: 'code'
   returnType: DataType
 }
 
-export interface NetworkAtom extends CodeAtom {
-  func: (props: Record<string, Exclude<any, Function>>) => any
+export interface NetworkAtom extends AtomBase {
+  type: 'network'
   nodes: Nodes
   edges: Edge[]
   selectedNodeId: string
+  returnType: DataType
 }
 
-export type Atom = CodeAtom | NetworkAtom
+export interface RendererAtom extends AtomBase {
+  type: 'renderer'
+  func: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx }) => () => void
+}
+
+export type Atom = CodeAtom | NetworkAtom | RendererAtom
 
 interface NodeBase {
   position: Vector
@@ -32,19 +42,24 @@ interface NodeBase {
 
 export interface AtomNode extends NodeBase {
   type: 'atom'
-  atom: AtomPath
-  props: Atom['props']
+  path: AtomPath
+  props: (CodeAtom | NetworkAtom)['props']
+}
+
+export interface RendererNode extends NodeBase {
+  type: 'renderer'
+  path: AtomPath
 }
 
 export interface PropsNode extends NodeBase {
   type: 'props'
 }
 
-export type Node = AtomNode | PropsNode
+export type Node = AtomNode | PropsNode | RendererNode
 
 export type Nodes = Record<string, Node>
 
-export type Package = Record<string, CodeAtom | NetworkAtom>
+export type Package = Record<string, Atom>
 
 /* NETWORK */
 

@@ -32,9 +32,9 @@ const $PROP = Symbol('prop')
 const isProp = (value: any) => typeof value === 'object' && $PROP in value
 
 export const getAtomFromContext = (ctx: Ctx, path: AtomPath): Atom | undefined => {
-  const result = ctx[path?.packageId]?.[path?.atomId]
+  const result = ctx.lib[path?.libId]?.[path?.atomId]
   if (!result) {
-    console.error('getAtomFromContext is undefined:', ctx, path)
+    console.error('getAtomFromContext is undefined:', ctx, path, ctx.lib[path?.libId])
   }
   return result
 }
@@ -47,7 +47,7 @@ export const getFuncFromContext = (ctx: Ctx, path: AtomPath): Func | undefined =
   return result
 }
 
-const generateCodeFromAtomPath = (path: AtomPath) => `ctx.${path.packageId}.${path.atomId}.func`
+const generateCodeFromAtomPath = (path: AtomPath) => `ctx.lib.${path.libId}.${path.atomId}.func`
 
 const resolveProps = <T>(_props: T) => {
   const props = {} as T
@@ -190,7 +190,13 @@ class Network {
       prop: new Map(),
     }
 
+    if (!this.selectedNode) {
+      console.error('Network.selectedNode is undefined')
+      return
+    }
+
     const intermediary = this.selectedNode?.toIntermediary({ cache, ctx })!
+
     const code = intermediaryToCode(ctx, intermediary, cache)
 
     /* const atomsToCode = Array.from(cache.atom.entries())
@@ -199,12 +205,12 @@ class Network {
 
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
-      .map(
-        node =>
-          `const __node__${node.id} = ${intermediaryToCode(ctx, node.intermediary, cache).join(
-            '',
-          )};`,
-      )
+      .map(node => {
+        console.log('usedNodesToCode', node.intermediary)
+        return `const __node__${node.id} = ${intermediaryToCode(ctx, node.intermediary, cache).join(
+          '',
+        )};`
+      })
 
     const body = [...usedNodesToCode, `return ${code.join('')}\n`]
       /* prefix with padding */
@@ -231,34 +237,36 @@ const createIntermediaryFromGraph = (
       .map(([nodeId, node]) => {
         if (node.type === 'props') return [nodeId, undefined]
 
-        const func = getFuncFromContext(ctx, node.atom)
+        const func = getFuncFromContext(ctx, node.path)
         if (!func) throw 'could not find func'
 
         return [
           nodeId,
           network.createNode(
-            node.atom,
+            node.path,
             func,
-            Object.fromEntries(
-              Object.entries(node.props).map(([id, prop]) => {
-                const edge = graph.edges.find(
-                  edge =>
-                    (edge.start.nodeId === nodeId && edge.start.handleId === id) ||
-                    (edge.end.nodeId === nodeId && edge.end.handleId === id),
+            'props' in node
+              ? Object.fromEntries(
+                  Object.entries(node.props).map(([id, prop]) => {
+                    const edge = graph.edges.find(
+                      edge =>
+                        (edge.start.nodeId === nodeId && edge.start.handleId === id) ||
+                        (edge.end.nodeId === nodeId && edge.end.handleId === id),
+                    )
+                    if (edge && (edge.end.type === 'prop' || edge.start.type === 'prop')) {
+                      return [
+                        id,
+                        {
+                          [$PROP]: true,
+                          type: 'prop',
+                          value: edge.end.type === 'prop' ? edge.end.handleId : edge.start.handleId,
+                        },
+                      ]
+                    }
+                    return [id, prop.value]
+                  }),
                 )
-                if (edge && (edge.end.type === 'prop' || edge.start.type === 'prop')) {
-                  return [
-                    id,
-                    {
-                      [$PROP]: true,
-                      type: 'prop',
-                      value: edge.end.type === 'prop' ? edge.end.handleId : edge.start.handleId,
-                    },
-                  ]
-                }
-                return [id, prop.value]
-              }),
-            ),
+              : {},
           ),
         ]
       })
@@ -279,6 +287,8 @@ const intermediaryToCode = (
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
 ): [func: string, arg: string] | [empty: '', result: string | number] => {
+  console.log('intermediary', intermediary)
+
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
@@ -323,6 +333,9 @@ const intermediaryToCode = (
         
         currently we are dynamically linking, without any typechecks.
       */
+
+      console.log('in for loop ', prop)
+
       const [, arg] = intermediaryToCode(ctx, prop, cache)
       if (node?.visited) {
         node.used = true

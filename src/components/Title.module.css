@@ -1,5 +1,6 @@
 .titleContainer {
-  padding: var(--margin) var(--margin);
+  padding: var(--margin);
+  padding-bottom: 0px;
   display: flex;
   flex-direction: column;
   gap: var(--margin-50);

@@ -14,7 +14,16 @@ import zeptoid from 'zeptoid'
 import Network from './Network/index'
 import { compileGraph, getAtomFromContext } from './compilation'
 import { ctx } from './ctx'
-import type { Atom, AtomNode, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
+import type {
+  Atom,
+  AtomNode,
+  AtomPath,
+  Ctx,
+  Func,
+  NetworkAtom,
+  Package,
+  RendererNode,
+} from './types'
 
 import clsx from 'clsx'
 import styles from './App.module.css'
@@ -24,12 +33,26 @@ import { Title } from './components/Title'
 import { isDarkMode } from './utils/isDarkMode'
 import { when } from './utils/when'
 
-const createNetworkNode = (ctx: Ctx, path: AtomPath): Record<string, AtomNode> => ({
+const createCodeOrNetworkNode = (ctx: Ctx, path: AtomPath): Record<string, AtomNode> => {
+  const props = getAtomFromContext(ctx, path)!.props
+  return {
+    [zeptoid()]: {
+      type: 'atom',
+      path,
+      props,
+      /* TODO: add proper positioning of node */
+      position: {
+        x: Math.random() * 400,
+        y: Math.random() * 300,
+      },
+    },
+  }
+}
+
+const createRendererNode = (ctx: Ctx, path: AtomPath): Record<string, RendererNode> => ({
   [zeptoid()]: {
-    type: 'atom',
-    atom: path,
-    props: getAtomFromContext(ctx, path)!.props,
-    /* TODO: add proper positioning of node */
+    type: 'renderer',
+    path,
     position: {
       x: Math.random() * 400,
       y: Math.random() * 300,
@@ -72,22 +95,23 @@ const ParameterPanel = (props: { atom: Atom }) => {
 }
 
 const App: Component = () => {
-  const [selected, setSelected] = createSignal<{ packageId: keyof Ctx; atomId: string }>({
-    packageId: 'self',
+  const [selected, setSelected] = createSignal<{ libId: keyof Ctx['lib']; atomId: string }>({
+    libId: 'self',
     atomId: 'main',
   })
 
   const [self, setSelf] = createStore<Package>({
     main: {
+      type: 'network',
       nodes: {
         sum: {
           type: 'atom',
-          atom: {
-            packageId: 'std',
+          path: {
+            libId: 'std',
             atomId: 'add',
           },
           props: {
-            ...ctx.std.add.props,
+            ...ctx.lib.std.add.props,
           },
           position: {
             x: 100,
@@ -96,12 +120,12 @@ const App: Component = () => {
         },
         sum2: {
           type: 'atom',
-          atom: {
-            packageId: 'std',
+          path: {
+            libId: 'std',
             atomId: 'add',
           },
           props: {
-            ...ctx.std.add.props,
+            ...ctx.lib.std.add.props,
           },
           position: {
             x: 300,
@@ -141,7 +165,7 @@ const App: Component = () => {
       selectedNodeId: 'sum',
     },
   })
-  ctx.self = self
+  ctx.lib.self = self
 
   const selectedAtom = () => getAtomFromContext(ctx, selected())
 
@@ -158,16 +182,17 @@ const App: Component = () => {
   const createAtom = () => {
     const id = 'atom' + atomId++
     setSelf(id, {
+      type: 'network',
       nodes: {
         sum: {
           type: 'atom',
-          atom: {
-            packageId: 'std',
+          path: {
+            libId: 'std',
             atomId: 'add',
           },
           func: ctx.std.add,
           props: {
-            ...ctx.std.add.props,
+            ...ctx.lib.std.add.props,
           },
           position: {
             x: 100,
@@ -206,10 +231,15 @@ const App: Component = () => {
       returnType: 'number',
       selectedNodeId: 'sum',
     } as NetworkAtom)
-    setSelected({ packageId: 'self', atomId: id })
+    setSelected({ libId: 'self', atomId: id })
   }
-  const addNodeToSelectedAtom = (path: AtomPath) =>
-    setSelf(selected().atomId, 'nodes', createNetworkNode(ctx, path))
+  const addNodeToSelectedAtom = (atom: Atom, path: AtomPath) => {
+    setSelf(
+      selected().atomId,
+      'nodes',
+      atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
+    )
+  }
 
   const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
@@ -236,11 +266,11 @@ const App: Component = () => {
       <div class={styles.panel}>
         <Title title="Atoms" />
         <div>
-          {Object.entries(ctx).map(([packageId, _package]) => (
+          {Object.entries(ctx.lib).map(([libId, _package]) => (
             <div class={styles.panel}>
-              <Title title={packageId} as="h3" class={styles.packageHeading}>
-                <span>{packageId}</span>
-                {packageId === 'self' ? (
+              <Title title={libId} as="h3" class={styles.packageHeading}>
+                <span>{libId}</span>
+                {libId === 'self' ? (
                   <Button onClick={createAtom} label="add new atom">
                     +
                   </Button>
@@ -251,12 +281,14 @@ const App: Component = () => {
                   <li>
                     <LabelButton
                       label={atomId}
-                      onClick={() => addNodeToSelectedAtom({ packageId, atomId })}
+                      onClick={() =>
+                        addNodeToSelectedAtom(_package[atomId], { libId: libId, atomId })
+                      }
                     >
                       <IconButton
                         icon={<AiFillTool />}
                         label="edit"
-                        onClick={() => setSelected({ packageId: packageId as keyof Ctx, atomId })}
+                        onClick={() => setSelected({ libId: libId as keyof Ctx, atomId })}
                         stopPropagation
                       />
                     </LabelButton>
@@ -289,6 +321,7 @@ const App: Component = () => {
                 atomId={selected().atomId}
                 atom={atom()}
                 setAtom={(...args: any[]) => setSelf(selected().atomId, ...args)}
+                ctx={ctx}
               />
             </>
           )}

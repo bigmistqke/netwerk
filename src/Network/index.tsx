@@ -1,20 +1,33 @@
 import { ContextMenu } from '@kobalte/core'
-
-import { ComponentProps, For, Index, Match, Show, Switch, createSignal, splitProps } from 'solid-js'
+import clsx from 'clsx'
+import {
+  ComponentProps,
+  For,
+  Index,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  splitProps,
+} from 'solid-js'
+import type { SetStoreFunction } from 'solid-js/store'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
+import { compileGraph } from '../compilation'
 import type {
   Atom,
   AtomNode as AtomNodeType,
+  Ctx,
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
   PropsNode,
-} from 'src/types'
+  RendererNode as RendererNodeType,
+} from '../types'
 
-import clsx from 'clsx'
-import { SetStoreFunction } from 'solid-js/store'
 import styles from './Network.module.css'
 
 const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) => {
@@ -120,6 +133,70 @@ const PropsNode = (props: {
   )
 }
 
+const RendererNode = (props: {
+  ctx: Ctx
+  atom: Atom
+  node: RendererNodeType
+  atomId: string
+  nodeId: string
+  onDrop: (start: HandleType, end: HandleType) => void
+  onDragHandle: (
+    handle: HandleType,
+    position: Vector,
+    hoveringHandle: HandleType | undefined,
+  ) => void
+  props: Atom['props']
+  removeNode: () => void
+  setTemporaryEdges: (edge: EdgeType | undefined) => void
+  setProps: (props: Partial<Atom['props']>) => void
+}) => {
+  console.log('props.node', props.node)
+
+  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
+    prev => {
+      try {
+        const func = compileGraph(props.ctx, props.atom)
+        return func
+      } catch (error) {
+        console.error('error while compiling graph:', error)
+        return prev
+      }
+    },
+    { func: () => {}, time: 0 },
+  )
+
+  createEffect(() => console.log(compiledGraph()))
+
+  return (
+    <>
+      <PropsNodeContextMenu
+        props={props.props}
+        setProps={props.setProps}
+        removeNode={props.removeNode}
+      />
+      <div class={clsx(styles.handles)}>
+        <Handle
+          // onMove={(position, hoveringHandle) =>
+          //   props.onDragHandle(
+          //     { nodeId: props.nodeId, handleId: handleId, type: 'prop' },
+          //     position,
+          //     hoveringHandle,
+          //   )
+          // }
+          type="prop"
+          onMoveEnd={() => props.setTemporaryEdges(undefined)}
+          onConnect={handle => props.onDrop(handle, { nodeId: props.nodeId, handleId: 'input' })}
+          class={styles.handle}
+          id="input"
+        >
+          <Anchor style={{ bottom: 'top%', left: '50%', transform: 'translate(-50%, 0%)' }} />
+        </Handle>
+      </div>
+      <div class={styles.nodeName}>{props.node.path.atomId}</div>
+    </>
+  )
+}
+
 const AtomNodeContextMenu = (props: {
   selected: boolean
   selectNode: () => void
@@ -207,7 +284,7 @@ const AtomNode = (props: {
         </Index>
       </div>
       <div class={styles.nodeName}>
-        {props.node.atom?.atomId.charAt(0).toUpperCase() + props.node.atom?.atomId.slice(1)}
+        {props.node.path?.atomId.charAt(0).toUpperCase() + props.node.path?.atomId.slice(1)}
       </div>
       <div class={clsx(styles.handles, styles.out)}>
         <Handle
@@ -238,6 +315,7 @@ export default function Network(props: {
   atomId: string
   atom: NetworkAtom
   setAtom: SetStoreFunction<NetworkAtom>
+  ctx: Ctx
 }) {
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -262,7 +340,10 @@ export default function Network(props: {
     props.setAtom('edges', edges =>
       edges.filter(edge => edge.end.nodeId !== nodeId && edge.start.nodeId !== nodeId),
     )
-  const addEdge = (edge: EdgeType) => props.setAtom('edges', edges => [...edges, edge])
+  const addEdge = (edge: EdgeType) => {
+    console.log('add edge!')
+    props.setAtom('edges', edges => [...edges, edge])
+  }
 
   /* UTILITIES */
   const validateDrop = (start: HandleType, end: HandleType) => {
@@ -361,6 +442,23 @@ export default function Network(props: {
                         setProps={_props => props.setAtom('props', _props)}
                         removeNode={() => removeNode(nodeId)}
                       />
+                    </Match>
+                    <Match when={node.type === 'renderer' && node}>
+                      {node => (
+                        <RendererNode
+                          ctx={props.ctx}
+                          atom={props.atom}
+                          node={node()}
+                          atomId={props.atomId}
+                          props={props.atom.props}
+                          nodeId={nodeId}
+                          onDragHandle={onDragHandle}
+                          setTemporaryEdges={setTemporaryEdges}
+                          onDrop={onDropHandle}
+                          setProps={_props => props.setAtom('props', _props)}
+                          removeNode={() => removeNode(nodeId)}
+                        />
+                      )}
                     </Match>
                   </Switch>
                 </Node>
