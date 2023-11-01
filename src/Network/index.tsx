@@ -11,13 +11,14 @@ import {
   createMemo,
   createRenderEffect,
   createSignal,
+  onCleanup,
   splitProps,
 } from 'solid-js'
 import type { SetStoreFunction } from 'solid-js/store'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
-import { useCtx } from '../App'
+import { useCtx as useRuntime } from '../App'
 import { compileGraph } from '../compilation'
 import type {
   Atom,
@@ -155,14 +156,14 @@ const RendererNode = (props: {
   const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
       try {
-        const func = compileGraph(props.ctx, props.atom)
-        return func
+        const fn = compileGraph(props.ctx, props.atom)
+        return fn
       } catch (error) {
         console.error('error while compiling graph:', error)
         return prev
       }
     },
-    { func: () => {}, time: 0 },
+    { fn: () => {}, time: 0 },
   )
 
   createEffect(() => console.log(compiledGraph()))
@@ -257,12 +258,17 @@ const AtomNode = (props: {
   toggleEmit: () => void
 }) => {
   const [value, setValue] = createSignal()
-  const ctx = useCtx()
+  const runtime = useRuntime()
 
   createRenderEffect(() => {
     if (props.node.emits) {
-      ctx.event.addListener(props.nodeId, value => setValue(value))
+      const unsubscribe = runtime.ctx.event.addListener(props.nodeId, value => setValue(value))
+      onCleanup(unsubscribe)
     }
+  })
+
+  createEffect(() => {
+    console.log('props.selected', props.selected, runtime.result())
   })
 
   return (
@@ -308,7 +314,12 @@ const AtomNode = (props: {
         </span>
         <span>
           {'  '}
-          <Show when={props.node.emits && value()}>{value()}</Show>
+          <Show
+            when={props.selected && runtime.result() !== undefined}
+            fallback={<Show when={props.node.emits && value() !== undefined}>{value()}</Show>}
+          >
+            {runtime.result()}
+          </Show>
         </span>
       </div>
 
@@ -358,7 +369,15 @@ export default function Network(props: {
     removeEdgeFromNodeId(nodeId)
   }
   const selectNode = (nodeId: string) => props.setAtom('selectedNodeId', nodeId)
-  const toggleEmitNode = (nodeId: string) => props.setAtom('nodes', nodeId, 'emits', b => !b)
+  const toggleEmitNode = (nodeId: string) => {
+    props.setAtom('nodes', nodeId, 'emits', b => {
+      if (!b) {
+        console.info(`start listening to events with:`)
+        console.info(`ctx.event.addListener(${nodeId}, console.log)`)
+      }
+      return !b
+    })
+  }
 
   const removeEdgeFromIndex = (index: number) =>
     props.setAtom('edges', x => {
@@ -433,16 +452,7 @@ export default function Network(props: {
                     styles[node.type],
                   )}
                   tabIndex={0}
-                  onDblClick={() => {
-                    // if (nodeId === props.atom.selectedNodeId) {
-                    //   /* TODO: add error-indicator in ui. */
-                    //   console.error('can not remove selected node.')
-                    //   return
-                    // }
-                    // removeEdgeFromNodeId(nodeId)
-                    // removeNode(nodeId)
-                    selectNode(nodeId)
-                  }}
+                  onDblClick={() => selectNode(nodeId)}
                 >
                   <Switch>
                     <Match when={node.type === 'atom' && node}>

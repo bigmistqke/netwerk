@@ -1,5 +1,6 @@
 import { AiFillTool } from 'solid-icons/ai'
 import {
+  Accessor,
   Component,
   For,
   Show,
@@ -10,7 +11,7 @@ import {
   createUniqueId,
   useContext,
 } from 'solid-js'
-import { createStore } from 'solid-js/store'
+import { SetStoreFunction, createStore } from 'solid-js/store'
 import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
@@ -62,9 +63,7 @@ const createRendererNode = (ctx: Ctx, path: AtomPath): Record<string, RendererNo
   },
 })
 
-const ParameterPanel = (props: { atom: Atom }) => {
-  const [atom, setAtom] = createStore(props.atom)
-
+const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) => {
   return (
     <div class={styles.parameterPanel}>
       <For each={Object.entries(props.atom.props)}>
@@ -79,13 +78,29 @@ const ParameterPanel = (props: { atom: Atom }) => {
                 <input
                   id={id1}
                   value={prop.value}
-                  onChange={e => setAtom('props', propId, 'value', +e.currentTarget.value)}
+                  onChange={e => props.setAtom('props', propId, 'value', +e.currentTarget.value)}
+                  onKeyDown={e => {
+                    switch (e.key) {
+                      case 'ArrowUp':
+                        if (prop.type === 'number') {
+                          props.setAtom('props', propId, 'value', value => value + 1)
+                          e.preventDefault()
+                        }
+                        break
+                      case 'ArrowDown':
+                        if (prop.type === 'number') {
+                          props.setAtom('props', propId, 'value', value => value - 1)
+                          e.preventDefault()
+                        }
+                        break
+                    }
+                  }}
                 />
                 <label for={id2}>type:</label>
                 <input
                   id={id2}
                   value={prop.type}
-                  onChange={e => setAtom('props', propId, 'value', +e.currentTarget.value)}
+                  onChange={e => props.setAtom('props', propId, 'value', +e.currentTarget.value)}
                 />
               </div>
             </div>
@@ -96,7 +111,10 @@ const ParameterPanel = (props: { atom: Atom }) => {
   )
 }
 
-const ctxContext = createContext<Ctx>(ctx)
+const ctxContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
+  ctx,
+  result: () => undefined,
+})
 export const useCtx = () => useContext(ctxContext)
 
 const App: Component = () => {
@@ -157,7 +175,7 @@ const App: Component = () => {
           start: { nodeId: 'sum2', handleId: 'output', type: 'output' },
         },
       ],
-      func: (() => {}) as Func,
+      fn: (() => {}) as Func,
       props: {
         a: {
           value: 0,
@@ -173,6 +191,7 @@ const App: Component = () => {
     },
   })
   ctx.lib.self = self
+  window.ctx = ctx
 
   const selectedAtom = () => getAtomFromContext(ctx, selected())
 
@@ -197,7 +216,7 @@ const App: Component = () => {
             libId: 'std',
             atomId: 'add',
           },
-          func: ctx.lib.std.add,
+          fn: ctx.lib.std.add,
           props: {
             ...ctx.lib.std.add.props,
           },
@@ -205,6 +224,7 @@ const App: Component = () => {
             x: 100,
             y: 400,
           },
+          emits: false,
         },
         props: {
           type: 'props',
@@ -224,7 +244,7 @@ const App: Component = () => {
           end: { nodeId: 'props', handleId: 'a', type: 'prop' },
         },
       ],
-      func: (() => {}) as Func,
+      fn: (() => {}) as Func,
       props: {
         a: {
           value: 0,
@@ -247,29 +267,39 @@ const App: Component = () => {
       atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
     )
   }
+  const setCurrentAtom = (...args: any[]) => setSelf(selected().atomId, ...args)
 
   const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
     prev => {
       try {
         const _selectedAtom = selectedAtom()
         if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
-        const func = compileGraph(ctx, _selectedAtom)
-        return func
+        const fn = compileGraph(ctx, _selectedAtom)
+        return fn
       } catch (error) {
         console.error('error while compiling graph:', error)
         return prev
       }
     },
-    { func: () => {}, time: 0 },
+    { fn: () => {}, time: 0 },
   )
 
   createEffect(() => {
-    const func = compiledGraph().func
-    if (func) setSelf(selected().atomId, 'func', () => func)
+    const fn = compiledGraph().fn
+    if (fn) setSelf(selected().atomId, 'fn', () => fn)
   })
 
+  const result = createMemo(() => compiledGraph().fn({ ctx, props: resolveProps() }))
+
+  createEffect(() => console.log('result is::', result()))
+
   return (
-    <ctxContext.Provider value={ctx}>
+    <ctxContext.Provider
+      value={{
+        ctx,
+        result,
+      }}
+    >
       <div class={styles.panels}>
         <div class={styles.panel}>
           <Title title="Atoms" />
@@ -324,11 +354,11 @@ const App: Component = () => {
           <Show when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}>
             {atom => (
               <>
-                <ParameterPanel atom={atom()} />
+                <ParameterPanel atom={atom()} setAtom={setCurrentAtom} />
                 <Network
                   atomId={selected().atomId}
                   atom={atom()}
-                  setAtom={(...args: any[]) => setSelf(selected().atomId, ...args)}
+                  setAtom={setCurrentAtom}
                   ctx={ctx}
                 />
               </>
@@ -338,7 +368,7 @@ const App: Component = () => {
         <div class={styles.panel}>
           <Title title="Compilation" />
           <div class={styles.panel__code}>
-            <span innerHTML={`(${compiledGraph().func.toString()})`} />
+            <span innerHTML={`(${compiledGraph().fn.toString()})`} />
             <span
               innerHTML={`({ "props": ${JSON.stringify(
                 resolveProps(),
@@ -351,9 +381,7 @@ const App: Component = () => {
           <Title title="Compilation Time" />
           <div class={styles.panelContent}>{compiledGraph().time.toFixed(3)}ms</div>
           <Title title="Result" />
-          <div class={styles.panelContent}>
-            {compiledGraph().func({ ctx, props: resolveProps() })}
-          </div>
+          <div class={styles.panelContent}>{result()}</div>
         </div>
       </div>
     </ctxContext.Provider>

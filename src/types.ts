@@ -12,7 +12,7 @@ export type AtomPath = {
 }
 
 interface AtomBase {
-  func: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx; dom: HTMLElement }) => any
+  fn: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx; dom: HTMLElement }) => any
   props: Record<string, Parameter>
 }
 
@@ -31,17 +31,17 @@ export interface NetworkAtom extends AtomBase {
 
 export interface RendererAtom extends AtomBase {
   type: 'renderer'
-  func: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx }) => () => void
+  fn: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx }) => () => void
 }
 
 export type Atom = CodeAtom | NetworkAtom | RendererAtom
 
 interface NodeBase {
-  emits: boolean
   position: Vector
 }
 
 export interface AtomNode extends NodeBase {
+  emits: boolean
   type: 'atom'
   path: AtomPath
   props: (CodeAtom | NetworkAtom)['props']

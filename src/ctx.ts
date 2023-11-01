@@ -3,7 +3,7 @@ import { Package } from './types'
 const std = {
   add: {
     type: 'code',
-    func: ({ props }) => props.a + props.b,
+    fn: ({ props }) => props.a + props.b,
     returnType: 'number',
     props: {
       a: {
@@ -18,7 +18,7 @@ const std = {
   },
   multiply: {
     type: 'code',
-    func: ({ props }) => props.a * props.b,
+    fn: ({ props }) => props.a * props.b,
     returnType: 'number',
     props: {
       a: {
@@ -42,8 +42,10 @@ export const ctx: Ctx = {
         ctx.event.listeners[nodeId] = []
       }
       ctx.event.listeners[nodeId].push(callback)
-      return () =>
-        (ctx.event.listeners[nodeId] = ctx.event.listeners[nodeId].filter(cb => cb !== callback))
+      function removeListener() {
+        ctx.event.listeners[nodeId] = ctx.event.listeners[nodeId].filter(cb => cb !== callback)
+      }
+      return removeListener
     },
     emit: (nodeId, value) => {
       const listeners = ctx.event.listeners[nodeId]

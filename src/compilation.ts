@@ -40,15 +40,15 @@ export const getAtomFromContext = (ctx: Ctx, path: AtomPath): Atom | undefined =
   return result
 }
 
-export const getFuncFromContext = (ctx: Ctx, path: AtomPath): Func | undefined => {
-  const result = getAtomFromContext(ctx, path)?.func
+export const getFnFromContext = (ctx: Ctx, path: AtomPath): Func | undefined => {
+  const result = getAtomFromContext(ctx, path)?.fn
   if (!result) {
     console.error('getFuncFromContext is undefined:', ctx, path)
   }
   return result
 }
 
-const generateCodeFromAtomPath = (path: AtomPath) => `ctx.lib.${path.libId}.${path.atomId}.func`
+const generateCodeFromAtomPath = (path: AtomPath) => `ctx.lib.${path.libId}.${path.atomId}.fn`
 
 const resolveProps = <T>(_props: T) => {
   const props = {} as T
@@ -186,8 +186,8 @@ class Network {
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
     T extends (props: TProps) => any,
-  >(id: string, path: AtomPath, func: T | undefined, props: PropsAccessor, emits: boolean) {
-    const node = new Node(id, path, func, props, emits)
+  >(id: string, path: AtomPath, fn: T | undefined, props: PropsAccessor, emits: boolean) {
+    const node = new Node(id, path, fn, props, emits)
     this.nodes.push(node)
     return node
   }
@@ -247,16 +247,17 @@ const createIntermediaryFromGraph = (
     Object.entries(graph.nodes)
       .map(([nodeId, node]) => {
         if (node.type === 'props') return [nodeId, undefined]
+        if (node.type === 'renderer') return [nodeId, undefined]
 
-        const func = getFuncFromContext(ctx, node.path)
-        if (!func) throw 'could not find func'
+        const fn = getFnFromContext(ctx, node.path)
+        if (!fn) throw 'could not find fn'
 
         return [
           nodeId,
           network.createNode(
             nodeId,
             node.path,
-            func,
+            fn,
             'props' in node
               ? Object.fromEntries(
                   Object.entries(node.props).map(([id, prop]) => {
@@ -265,6 +266,7 @@ const createIntermediaryFromGraph = (
                         (edge.start.nodeId === nodeId && edge.start.handleId === id) ||
                         (edge.end.nodeId === nodeId && edge.end.handleId === id),
                     )
+
                     if (edge && (edge.end.type === 'prop' || edge.start.type === 'prop')) {
                       return [
                         id,
@@ -299,16 +301,16 @@ const intermediaryToCode = (
   ctx: Ctx,
   intermediary: ReturnType<Node['toIntermediary']>,
   cache: CompilationCache,
-): [func: string, arg: string] | [empty: '', result: string | number] => {
+): [fn: string, arg: string] | [empty: '', result: string | number] => {
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
 
-  let funcString = ''
+  let fnString = ''
 
-  // if (intermediary.node.emits) funcString += 'ctx.emit('
+  // if (intermediary.node.emits) fnString += 'ctx.emit('
 
-  funcString += generateCodeFromAtomPath(intermediary.path)
+  fnString += generateCodeFromAtomPath(intermediary.path)
 
   let argString = ''
   argString += '({props: {'
@@ -332,7 +334,7 @@ const intermediaryToCode = (
       /* 
         TODO: we could provide an option to either 
           - static linking of the code:
-            - inline each atom's func
+            - inline each atom's fn
             - allows for code elimination by collapsing pure branches
             - can be done during build for embed as optimization-step
           - dynamic linking of the code:
@@ -369,10 +371,10 @@ const intermediaryToCode = (
   // if (intermediary.node.emits) argString += ')'
 
   if (intermediary.pure) {
-    return ['', eval([funcString, argString].join(''))]
+    return ['', eval([fnString, argString].join(''))]
   }
 
-  return [funcString, argString]
+  return [fnString, argString]
 }
 
 /**
@@ -382,9 +384,9 @@ const intermediaryToCode = (
 export const compileGraph = (ctx: Ctx, graph: Atom) => {
   let start = performance.now()
   const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph).toCode(ctx)
-  console.info('code is ', code)
+  // console.info('code is ', code)
   return {
-    func: code ? eval(code) : graph.func,
+    fn: code ? eval(code) : graph.fn,
     time: performance.now() - start,
   }
 }
