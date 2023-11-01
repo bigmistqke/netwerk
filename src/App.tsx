@@ -289,9 +289,9 @@ const App: Component = () => {
     if (fn) setSelf(selected().atomId, 'fn', () => fn)
   })
 
-  const result = createMemo(() => compiledGraph().fn({ ctx, props: resolveProps() }))
-
-  createEffect(() => console.log('result is::', result()))
+  const result = createMemo(() => {
+    return compiledGraph().fn({ ctx, props: resolveProps() })
+  })
 
   return (
     <ctxContext.Provider

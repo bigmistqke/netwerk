@@ -8,11 +8,11 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  padding: 5px;
+  padding: var(--margin-50);
 
   background: var(--color-back);
-  border: 1px solid var(--color-front);
-  border-radius: 5px;
+  border: 1px solid var(--color-grey-light);
+  border-radius: var(--margin-50);
   color: var(--color-front);
   cursor: move;
   font-size: 12pt;
@@ -105,7 +105,7 @@
   cursor: pointer;
   font-size: 10pt;
   border-radius: 50%;
-  border: 1px solid var(--color-front);
+  border: 1px solid var(--color-grey-light);
   background: var(--color-back);
   z-index: 10;
 }
@@ -127,7 +127,6 @@
 }
 
 .nodeName {
-  padding: 5px;
   white-space: nowrap;
 }
 
@@ -138,6 +137,12 @@
   &:hover {
     stroke-width: 2px;
   }
+}
+
+.rendererNode {
+  position: absolute;
+  right: calc(var(--margin) * -1);
+  transform: translate(100%);
 }
 
 /* context-menu styling taken from kobalte.dev */
@@ -206,7 +211,7 @@
 .context-menu__separator {
   height: 1px;
   border: none;
-  border-top: 1px solid hsl(240 6% 90%);
+  border-top: 1px solid var(--color-grey);
   background: transparent;
   margin: 6px;
 }

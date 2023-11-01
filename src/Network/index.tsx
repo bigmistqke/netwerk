@@ -7,7 +7,6 @@ import {
   Match,
   Show,
   Switch,
-  createEffect,
   createMemo,
   createRenderEffect,
   createSignal,
@@ -22,12 +21,14 @@ import { useCtx as useRuntime } from '../App'
 import { compileGraph } from '../compilation'
 import type {
   Atom,
+  AtomNode,
   AtomNode as AtomNodeType,
   Ctx,
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
   PropsNode,
+  RendererNode,
   RendererNode as RendererNodeType,
 } from '../types'
 
@@ -166,8 +167,6 @@ const RendererNode = (props: {
     { fn: () => {}, time: 0 },
   )
 
-  createEffect(() => console.log(compiledGraph()))
-
   return (
     <>
       <PropsNodeContextMenu
@@ -262,14 +261,16 @@ const AtomNode = (props: {
 
   createRenderEffect(() => {
     if (props.node.emits) {
-      const unsubscribe = runtime.ctx.event.addListener(props.nodeId, value => setValue(value))
+      const unsubscribe = runtime.ctx.event.addListener(props.nodeId, value => {
+        setValue(value)
+      })
       onCleanup(unsubscribe)
     }
   })
 
-  createEffect(() => {
-    console.log('props.selected', props.selected, runtime.result())
-  })
+  const currentValue = () =>
+    (props.selected && runtime.result() !== undefined && runtime.result()) ||
+    (props.node.emits && value() !== undefined && value())
 
   return (
     <>
@@ -312,15 +313,6 @@ const AtomNode = (props: {
         <span>
           {props.node.path?.atomId.charAt(0).toUpperCase() + props.node.path?.atomId.slice(1)}
         </span>
-        <span>
-          {'  '}
-          <Show
-            when={props.selected && runtime.result() !== undefined}
-            fallback={<Show when={props.node.emits && value() !== undefined}>{value()}</Show>}
-          >
-            {runtime.result()}
-          </Show>
-        </span>
       </div>
 
       <div class={clsx(styles.handles, styles.out)}>
@@ -343,6 +335,10 @@ const AtomNode = (props: {
           <Anchor style={{ bottom: '0px', left: '50%', transform: 'translate(-50%, 0%)' }} />
         </Handle>
       </div>
+
+      <Show when={currentValue()}>
+        <div class={clsx(styles.rendererNode, styles.node)}>{currentValue()}</div>
+      </Show>
     </>
   )
 }
@@ -373,7 +369,7 @@ export default function Network(props: {
     props.setAtom('nodes', nodeId, 'emits', b => {
       if (!b) {
         console.info(`start listening to events with:`)
-        console.info(`ctx.event.addListener(${nodeId}, console.log)`)
+        console.info(`ctx.event.addListener("${nodeId}", console.log)`)
       }
       return !b
     })
@@ -438,28 +434,29 @@ export default function Network(props: {
         </For>
       </Html.Destination>
       <Html>
-        <For each={Object.entries(props.atom.nodes)}>
-          {([nodeId, node]) => (
-            <ContextMenu.Root>
-              <ContextMenu.Trigger class="context-menu__trigger">
-                <Node
-                  position={node.position}
-                  id={nodeId}
-                  onMove={position => moveNode(nodeId, position)}
-                  class={clsx(
-                    styles.node,
-                    nodeId === props.atom.selectedNodeId && styles.selected,
-                    styles[node.type],
-                  )}
-                  tabIndex={0}
-                  onDblClick={() => selectNode(nodeId)}
-                >
-                  <Switch>
-                    <Match when={node.type === 'atom' && node}>
-                      {node => (
+        <For each={Object.keys(props.atom.nodes)}>
+          {nodeId => {
+            const node = () => props.atom.nodes[nodeId]
+            return (
+              <ContextMenu.Root>
+                <ContextMenu.Trigger class="context-menu__trigger">
+                  <Node
+                    position={props.atom.nodes[nodeId].position}
+                    id={nodeId}
+                    onMove={position => moveNode(nodeId, position)}
+                    class={clsx(
+                      styles.node,
+                      nodeId === props.atom.selectedNodeId && styles.selected,
+                      styles[node().type],
+                    )}
+                    tabIndex={0}
+                    onDblClick={() => selectNode(nodeId)}
+                  >
+                    <Switch>
+                      <Match when={node().type === 'atom'}>
                         <AtomNode
                           selected={nodeId === props.atom.selectedNodeId}
-                          node={node()}
+                          node={node() as AtomNode}
                           nodeId={nodeId}
                           onDragHandle={onDragHandle}
                           setTemporaryEdges={setTemporaryEdges}
@@ -468,26 +465,9 @@ export default function Network(props: {
                           removeNode={() => removeNode(nodeId)}
                           toggleEmit={() => toggleEmitNode(nodeId)}
                         />
-                      )}
-                    </Match>
-                    <Match when={node.type === 'props' && node}>
-                      <PropsNode
-                        atomId={props.atomId}
-                        props={props.atom.props}
-                        nodeId={nodeId}
-                        onDragHandle={onDragHandle}
-                        setTemporaryEdges={setTemporaryEdges}
-                        onDrop={onDropHandle}
-                        setProps={_props => props.setAtom('props', _props)}
-                        removeNode={() => removeNode(nodeId)}
-                      />
-                    </Match>
-                    <Match when={node.type === 'renderer' && node}>
-                      {node => (
-                        <RendererNode
-                          ctx={props.ctx}
-                          atom={props.atom}
-                          node={node()}
+                      </Match>
+                      <Match when={node().type === 'props'}>
+                        <PropsNode
                           atomId={props.atomId}
                           props={props.atom.props}
                           nodeId={nodeId}
@@ -497,13 +477,28 @@ export default function Network(props: {
                           setProps={_props => props.setAtom('props', _props)}
                           removeNode={() => removeNode(nodeId)}
                         />
-                      )}
-                    </Match>
-                  </Switch>
-                </Node>
-              </ContextMenu.Trigger>
-            </ContextMenu.Root>
-          )}
+                      </Match>
+                      <Match when={node().type === 'renderer'}>
+                        <RendererNode
+                          ctx={props.ctx}
+                          atom={props.atom}
+                          node={node() as RendererNode}
+                          atomId={props.atomId}
+                          props={props.atom.props}
+                          nodeId={nodeId}
+                          onDragHandle={onDragHandle}
+                          setTemporaryEdges={setTemporaryEdges}
+                          onDrop={onDropHandle}
+                          setProps={_props => props.setAtom('props', _props)}
+                          removeNode={() => removeNode(nodeId)}
+                        />
+                      </Match>
+                    </Switch>
+                  </Node>
+                </ContextMenu.Trigger>
+              </ContextMenu.Root>
+            )
+          }}
         </For>
       </Html>
       <Show when={temporaryEdges()}>
