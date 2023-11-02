@@ -11,7 +11,7 @@ https://github.com/bigmistqke/netwerk/assets/10504064/f2fc307e-b437-49fa-97f6-64
   - compile networks to javascript functions while editing
   - analysis:
     - static branches get resolved / collapsed (see how the compiled code starts with a single value)
-    - calculations that are accessed multiple times are cached (see `__node__`)
+    - network is unfolded, caching calculations when accessed multiple times (see `__node__`)
   - this allows for the resulting code to be framework-agnostic: it can be driven by any reactive system
 - event-system:
   - nodes are able to emit their values out of the calculation through an event-system
