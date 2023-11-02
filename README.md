@@ -23,9 +23,9 @@ https://github.com/bigmistqke/netwerk/assets/10504064/f2fc307e-b437-49fa-97f6-64
   - unified signature:
     - all atoms contain a property `fn` that extends `(arg: {props, ctx}) => any` allowing atoms to be composed easily with one another
   - types:
-    - `CodeAtom`: contains a single javascript-function. `{ props, ctx }` as argument, returns `value: any`
-    - `NetworkAtom`: containing a graph of `CodeAtom`-, and `NetworkAtom`-nodes
-    - `RendererAtom`: contains a single javascript-function. `{ props, ctx, dom }` as argument, returns `render: () => void`
+    - `CodeAtom`
+    - `NetworkAtom` containing a graph of `CodeAtom`-, and `NetworkAtom`-nodes
+    - `RendererAtom` has `{ props, ctx, dom }` as argument, returns `render: () => void`
 - ctx:
   - `ctx.lib` libraries
     - `ctx.lib.std` standard library
