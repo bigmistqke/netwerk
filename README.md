@@ -8,8 +8,7 @@ https://github.com/bigmistqke/netwerk/assets/10504064/f2fc307e-b437-49fa-97f6-64
 ## Main ideas
 
 - compilation:
-  - minimal to no runtime
-  - compile networks to javascript function-strings while editing
+  - compile networks to javascript functions while editing
   - analysis:
     - static branches get resolved / collapsed (see how the compiled code starts with a single value)
     - calculations that are accessed multiple times are cached (see `__node__`)
