@@ -13,16 +13,19 @@ https://github.com/bigmistqke/netwerk/assets/10504064/f2fc307e-b437-49fa-97f6-64
     - static branches get resolved / collapsed (see how the compiled code starts with a single value)
     - network is unfolded, caching calculations when accessed multiple times (see `__node__`)
   - resulting code is framework agnostic
+  - future: export project as standalone, zero-dependency javascript-file
 - event-system:
   - nodes are able to emit their values out of the calculation through an event-system
   - this can be used p.ex to have intermediary visualizations of the graph
   - this emit-calls are compiled into the resulting code (see `ctx.event.emits`)
 - atoms:
-  - atoms are individual blocks of logic
+  - atoms are individual, composable blocks of logic
+  - unified signature:
+    - all atoms contain a property `fn` that extends `(arg: {props, ctx}) => any` allowing atoms to be composed easily with one another
+  - types:
     - `CodeAtom`: contains a single javascript-function. `{ props, ctx }` as argument, returns `value: any`
     - `NetworkAtom`: containing a graph of `CodeAtom`-, and `NetworkAtom`-nodes
     - `RendererAtom`: contains a single javascript-function. `{ props, ctx, dom }` as argument, returns `render: () => void`
-  - all atoms contain a property `fn` that extends `(arg: {props, ctx}) => any` allowing atoms to be composed easily with one another
 - ctx:
   - `ctx.lib` libraries
     - `ctx.lib.std` standard library
