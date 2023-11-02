@@ -13,7 +13,7 @@ https://github.com/bigmistqke/netwerk/assets/10504064/f2fc307e-b437-49fa-97f6-64
     - static branches get resolved / collapsed (see how the compiled code starts with a single value)
     - network is unfolded, caching calculations when accessed multiple times (see `__node__`)
   - resulting code is framework agnostic
-  - `TODO`: export project as standalone, zero-dependency javascript-file
+  - `TODO` export project as standalone, zero-dependency javascript-file
 - event-system:
   - nodes are able to emit their values out of the calculation through an event-system
   - this can be used p.ex to have intermediary visualizations of the graph
