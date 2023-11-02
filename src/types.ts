@@ -29,9 +29,9 @@ export interface NetworkAtom extends AtomBase {
   returnType: DataType
 }
 
-export interface RendererAtom extends AtomBase {
+export interface RendererAtom {
   type: 'renderer'
-  fn: (arg: { props: Record<string, Exclude<any, Function>>; ctx: Ctx }) => () => void
+  fn: (arg: { ctx: Ctx; dom: HTMLElement }) => (result: any) => void
 }
 
 export type Atom = CodeAtom | NetworkAtom | RendererAtom
@@ -45,11 +45,6 @@ export interface AtomNode extends NodeBase {
   type: 'atom'
   path: AtomPath
   props: (CodeAtom | NetworkAtom)['props']
-}
-
-export interface RendererNode extends NodeBase {
-  type: 'renderer'
-  path: AtomPath
 }
 
 export interface PropsNode extends NodeBase {

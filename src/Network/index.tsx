@@ -7,10 +7,11 @@ import {
   Match,
   Show,
   Switch,
-  createMemo,
+  createEffect,
   createRenderEffect,
   createSignal,
   onCleanup,
+  onMount,
   splitProps,
 } from 'solid-js'
 import type { SetStoreFunction } from 'solid-js/store'
@@ -18,7 +19,6 @@ import type { SetStoreFunction } from 'solid-js/store'
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
 import { useCtx as useRuntime } from '../App'
-import { compileGraph } from '../compilation'
 import type {
   Atom,
   AtomNode,
@@ -28,8 +28,6 @@ import type {
   Handle as HandleType,
   NetworkAtom,
   PropsNode,
-  RendererNode,
-  RendererNode as RendererNodeType,
 } from '../types'
 
 import styles from './Network.module.css'
@@ -137,66 +135,6 @@ const PropsNode = (props: {
   )
 }
 
-const RendererNode = (props: {
-  ctx: Ctx
-  atom: Atom
-  node: RendererNodeType
-  atomId: string
-  nodeId: string
-  onDrop: (start: HandleType, end: HandleType) => void
-  onDragHandle: (
-    handle: HandleType,
-    position: Vector,
-    hoveringHandle: HandleType | undefined,
-  ) => void
-  props: Atom['props']
-  removeNode: () => void
-  setTemporaryEdges: (edge: EdgeType | undefined) => void
-  setProps: (props: Partial<Atom['props']>) => void
-}) => {
-  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
-    prev => {
-      try {
-        const fn = compileGraph(props.ctx, props.atom)
-        return fn
-      } catch (error) {
-        console.error('error while compiling graph:', error)
-        return prev
-      }
-    },
-    { fn: () => {}, time: 0 },
-  )
-
-  return (
-    <>
-      <PropsNodeContextMenu
-        props={props.props}
-        setProps={props.setProps}
-        removeNode={props.removeNode}
-      />
-      <div class={clsx(styles.handles)}>
-        <Handle
-          // onMove={(position, hoveringHandle) =>
-          //   props.onDragHandle(
-          //     { nodeId: props.nodeId, handleId: handleId, type: 'prop' },
-          //     position,
-          //     hoveringHandle,
-          //   )
-          // }
-          type="prop"
-          onMoveEnd={() => props.setTemporaryEdges(undefined)}
-          onConnect={handle => props.onDrop(handle, { nodeId: props.nodeId, handleId: 'input' })}
-          class={styles.handle}
-          id="input"
-        >
-          <Anchor style={{ bottom: 'top%', left: '50%', transform: 'translate(-50%, 0%)' }} />
-        </Handle>
-      </div>
-      <div class={styles.nodeName}>{props.node.path.atomId}</div>
-    </>
-  )
-}
-
 const AtomNodeContextMenu = (props: {
   emits: boolean
   selected: boolean
@@ -239,6 +177,16 @@ const AtomNodeContextMenu = (props: {
       </ContextMenu.Portal>
     </>
   )
+}
+
+const Renderer = (props: { value: any }) => {
+  let dom: HTMLDivElement
+  const runtime = useRuntime()
+  onMount(() => {
+    const render = runtime.ctx.lib.std.domRenderer.fn({ dom, ctx: runtime.ctx })
+    createEffect(() => render(props.value))
+  })
+  return <div ref={dom!} class={clsx(styles.rendererNode, styles.node)} />
 }
 
 const AtomNode = (props: {
@@ -337,7 +285,7 @@ const AtomNode = (props: {
       </div>
 
       <Show when={currentValue()}>
-        <div class={clsx(styles.rendererNode, styles.node)}>{currentValue()}</div>
+        <Renderer value={currentValue()} />
       </Show>
     </>
   )
@@ -468,21 +416,6 @@ export default function Network(props: {
                       </Match>
                       <Match when={node().type === 'props'}>
                         <PropsNode
-                          atomId={props.atomId}
-                          props={props.atom.props}
-                          nodeId={nodeId}
-                          onDragHandle={onDragHandle}
-                          setTemporaryEdges={setTemporaryEdges}
-                          onDrop={onDropHandle}
-                          setProps={_props => props.setAtom('props', _props)}
-                          removeNode={() => removeNode(nodeId)}
-                        />
-                      </Match>
-                      <Match when={node().type === 'renderer'}>
-                        <RendererNode
-                          ctx={props.ctx}
-                          atom={props.atom}
-                          node={node() as RendererNode}
                           atomId={props.atomId}
                           props={props.atom.props}
                           nodeId={nodeId}

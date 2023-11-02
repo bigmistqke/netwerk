@@ -31,6 +31,15 @@ const std = {
       },
     },
   },
+  domRenderer: {
+    type: 'renderer',
+    fn: ({ dom }) => {
+      dom.innerHTML = ''
+      const container = document.createElement('div')
+      dom.appendChild(container)
+      return result => (container.textContent = result)
+    },
+  },
 } satisfies Package
 
 export const ctx: Ctx = {
