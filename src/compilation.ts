@@ -10,7 +10,7 @@ type FunctionCache = {
 }
 type NodeCache = {
   id: string
-  visited: boolean
+  visited: number
   intermediary: any
   used: boolean
   emits: boolean
@@ -111,7 +111,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
       /* this prop is a Node */
 
-      if (/* typeof prop === 'object' && 'exec' in prop */ prop instanceof Node) {
+      if (prop instanceof Node) {
         const node_cache = cache.node.get(prop)
         if (node_cache) {
           /* 
@@ -120,7 +120,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
             We mark the node in the nodeMap as visited.
             This will initialize node-memoization during code-generation.
           */
-          node_cache.visited = true
+          node_cache.visited++
         }
 
         const intermediary = prop.toIntermediary({ cache, ctx })
@@ -131,7 +131,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           */
           cache.node.set(prop, {
             id: prop.id,
-            visited: false,
+            visited: 1,
             intermediary,
             used: false,
             emits: prop.emits,
@@ -209,7 +209,7 @@ class Network {
 
     const intermediary = this.selectedNode?.toIntermediary({ cache, ctx })!
 
-    const code = intermediaryToCode(ctx, intermediary, cache)
+    const code = intermediaryToCode({ ctx, intermediary, cache, visited: 0 })
 
     /* const atomsToCode = Array.from(cache.atom.entries())
       .filter(([, { used }]) => used)
@@ -218,8 +218,9 @@ class Network {
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
       .map(node => {
-        let body = intermediaryToCode(ctx, node.intermediary, cache).join('')
+        let body = intermediaryToCode({ ctx, intermediary: node.intermediary, cache }).join('')
         body = node.emits ? `ctx.event.emit("${node.id}", ${body})` : body
+        body = `ctx.memo(${body})`
         return `const __node__${node.id} = ${body};`
       })
 
@@ -294,24 +295,30 @@ const createIntermediaryFromGraph = (
     })
   }
   network.selectNode(nodes[graph.selectedNodeId])
+
   return network
 }
 
-const intermediaryToCode = (
-  ctx: Ctx,
-  intermediary: ReturnType<Node['toIntermediary']>,
-  cache: CompilationCache,
-): [fn: string, arg: string] | [empty: '', result: string | number] => {
+const intermediaryToCode = ({
+  ctx,
+  intermediary,
+  cache,
+  visited,
+}: {
+  ctx: Ctx
+  intermediary: ReturnType<Node['toIntermediary']>
+  cache: CompilationCache
+  visited: number
+}): [fn: string, arg: string] | [empty: '', result: string | number] => {
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
 
+  const parentNode = cache.node.get(intermediary.node)
+
   let fnString = ''
 
-  // if (intermediary.node.emits) fnString += 'ctx.emit('
-
   fnString += generateCodeFromAtomPath(intermediary.path)
-
   let argString = ''
   argString += '({props: {'
   const entries = Object.entries(intermediary.props)
@@ -320,8 +327,6 @@ const intermediaryToCode = (
 
     argString += propId
     argString += ': '
-
-    const node = cache.node.get(prop.node)
 
     if (typeof prop === 'object') {
       if (prop.type === 'prop') {
@@ -347,19 +352,20 @@ const intermediaryToCode = (
         currently we are dynamically linking, without any typechecks.
       */
 
-      const [, arg] = intermediaryToCode(ctx, prop, cache)
+      const [, arg] = intermediaryToCode({ ctx, intermediary: prop, cache, visited })
 
-      if (node?.visited) {
+      const node = cache.node.get(prop.node)
+
+      if (node && node?.visited > (parentNode?.visited || 0)) {
         node.used = true
         argString += `__node__${node.id}`
         argString += ','
         continue
       }
 
-      let tempString = generateCodeFromAtomPath(prop.path)
-      tempString += arg
+      const body = generateCodeFromAtomPath(prop.path) + arg
 
-      argString += prop.node.emits ? `ctx.event.emit("${prop.node.id}", ${tempString})` : tempString
+      argString += prop.node.emits ? `ctx.event.emit("${prop.node.id}", ${body})` : body
       argString += ', '
       continue
     }
@@ -367,8 +373,6 @@ const intermediaryToCode = (
     argString += ','
   }
   argString += '}, ctx })'
-
-  // if (intermediary.node.emits) argString += ')'
 
   if (intermediary.pure) {
     return ['', eval([fnString, argString].join(''))]

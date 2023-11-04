@@ -95,7 +95,6 @@ const PropsNode = (props: {
   setTemporaryEdges: (edge: EdgeType | undefined) => void
   setProps: (props: Partial<Atom['props']>) => void
 }) => {
-  console.log('mount propsnode')
   return (
     <>
       <PropsNodeContextMenu
