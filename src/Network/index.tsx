@@ -95,6 +95,7 @@ const PropsNode = (props: {
   setTemporaryEdges: (edge: EdgeType | undefined) => void
   setProps: (props: Partial<Atom['props']>) => void
 }) => {
+  console.log('mount propsnode')
   return (
     <>
       <PropsNodeContextMenu
@@ -230,9 +231,9 @@ const AtomNode = (props: {
         toggleEmit={props.toggleEmit}
       />
       <div class={styles.handles}>
-        <Index each={Object.entries(props.node.props)}>
-          {handleEntry => {
-            const [handleId, handle] = handleEntry()
+        <Index each={Object.keys(props.node.props)}>
+          {_handleId => {
+            const handleId = _handleId()
             return (
               <Handle
                 onMove={(position, hoveringHandle) =>
@@ -389,7 +390,7 @@ export default function Network(props: {
               <ContextMenu.Root>
                 <ContextMenu.Trigger class="context-menu__trigger">
                   <Node
-                    position={props.atom.nodes[nodeId].position}
+                    position={node().position}
                     id={nodeId}
                     onMove={position => moveNode(nodeId, position)}
                     class={clsx(
