@@ -7,30 +7,42 @@ import {
   Match,
   Show,
   Switch,
+  createContext,
   createEffect,
+  createMemo,
   createRenderEffect,
   createSignal,
   onCleanup,
   onMount,
   splitProps,
+  useContext,
 } from 'solid-js'
 import type { SetStoreFunction } from 'solid-js/store'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
-import { useCtx as useRuntime } from '../App'
 import type {
   Atom,
   AtomNode,
   AtomNode as AtomNodeType,
+  AtomPath,
   Ctx,
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
+  Package,
   PropsNode,
 } from '../types'
 
+import { compileGraph } from '../compilation'
+import { ctx } from '../ctx'
 import styles from './Network.module.css'
+
+const ctxContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
+  ctx,
+  result: () => undefined,
+})
+export const useRuntime = () => useContext(ctxContext)
 
 const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) => {
   const [props, rest] = splitProps(_props, ['start', 'end'])
@@ -299,6 +311,9 @@ export default function Network(props: {
   atom: NetworkAtom
   setAtom: SetStoreFunction<NetworkAtom>
   ctx: Ctx
+  setSelf: SetStoreFunction<Package>
+  path: AtomPath
+  resolvedProps: Record<string, any>
 }) {
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -358,89 +373,127 @@ export default function Network(props: {
   const onDropHandle = (start: HandleType, end: HandleType) =>
     validateDrop(start, end) && addEdge({ start, end })
 
+  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
+    prev => {
+      try {
+        if (!props.atom) throw `no selected atom for path: ${JSON.stringify(props.path)}`
+        const fn = compileGraph({
+          ctx: props.ctx,
+          graph: props.atom,
+          path: props.path,
+        })
+        return fn
+      } catch (error) {
+        console.error('error while compiling graph:', error)
+        return prev
+      }
+    },
+    { fn: () => {}, time: 0 },
+  )
+
+  createEffect(() => {
+    const fn = compiledGraph().fn
+    if (fn) props.setSelf(props.path.atomId, 'fn', () => fn)
+  })
+
+  const [result, setResult] = createSignal()
+
+  createEffect(() => {
+    const fn = compiledGraph().fn
+    /* setTimeout(() => */ setResult(fn({ ctx: props.ctx, props: props.resolvedProps })) /* , 0) */
+  })
+
   return (
-    <Graph
-      /* added timeout so it would reset selected texts */
-      onPanStart={() => setTimeout(() => document.body.classList.add('panning'), 0)}
-      onPanEnd={() => document.body.classList.remove('panning')}
-      class={styles.graph}
+    <ctxContext.Provider
+      value={{
+        ctx,
+        result,
+        // result,
+      }}
     >
-      <Html.Destination>
-        <For each={props.atom.edges}>
-          {(edge, index) => (
-            <Edge start={edge.start} end={edge.end}>
-              {(start, end) => (
-                <Step
-                  start={start}
-                  end={end}
-                  class={styles.edge}
-                  onDblClick={() => removeEdgeFromIndex(index())}
-                />
-              )}
+      <Graph
+        /* added timeout so it would reset selected texts */
+        onPanStart={() => setTimeout(() => document.body.classList.add('panning'), 0)}
+        onPanEnd={() => document.body.classList.remove('panning')}
+        class={styles.graph}
+      >
+        <Html.Destination>
+          <For each={props.atom.edges}>
+            {(edge, index) => (
+              <Edge start={edge.start} end={edge.end}>
+                {(start, end) => (
+                  <Step
+                    start={start}
+                    end={end}
+                    class={styles.edge}
+                    onDblClick={() => removeEdgeFromIndex(index())}
+                  />
+                )}
+              </Edge>
+            )}
+          </For>
+        </Html.Destination>
+        <Html>
+          <For each={Object.keys(props.atom.nodes)}>
+            {nodeId => {
+              const node = () => props.atom.nodes[nodeId]
+              return (
+                <ContextMenu.Root>
+                  <ContextMenu.Trigger class="context-menu__trigger">
+                    <Node
+                      position={node().position}
+                      id={nodeId}
+                      onMove={position => moveNode(nodeId, position)}
+                      class={clsx(
+                        styles.node,
+                        nodeId === props.atom.selectedNodeId && styles.selected,
+                        styles[node().type],
+                      )}
+                      tabIndex={0}
+                      onDblClick={() => selectNode(nodeId)}
+                    >
+                      <Switch>
+                        <Match when={node().type === 'atom'}>
+                          <AtomNode
+                            selected={nodeId === props.atom.selectedNodeId}
+                            node={node() as AtomNode}
+                            nodeId={nodeId}
+                            onDragHandle={onDragHandle}
+                            setTemporaryEdges={setTemporaryEdges}
+                            onDrop={onDropHandle}
+                            selectNode={() => props.setAtom('selectedNodeId', nodeId)}
+                            removeNode={() => removeNode(nodeId)}
+                            toggleEmit={() => toggleEmitNode(nodeId)}
+                          />
+                        </Match>
+                        <Match when={node().type === 'props'}>
+                          <PropsNode
+                            atomId={props.atomId}
+                            props={props.atom.props}
+                            nodeId={nodeId}
+                            onDragHandle={onDragHandle}
+                            setTemporaryEdges={setTemporaryEdges}
+                            onDrop={onDropHandle}
+                            setProps={_props => props.setAtom('props', _props)}
+                            removeNode={() => removeNode(nodeId)}
+                          />
+                        </Match>
+                      </Switch>
+                    </Node>
+                  </ContextMenu.Trigger>
+                </ContextMenu.Root>
+              )
+            }}
+          </For>
+        </Html>
+        <Show when={temporaryEdges()}>
+          {edge => (
+            <Edge start={edge().start} end={edge().end} class={styles.edge}>
+              {(start, end) => <Step start={start} end={end} />}
             </Edge>
           )}
-        </For>
-      </Html.Destination>
-      <Html>
-        <For each={Object.keys(props.atom.nodes)}>
-          {nodeId => {
-            const node = () => props.atom.nodes[nodeId]
-            return (
-              <ContextMenu.Root>
-                <ContextMenu.Trigger class="context-menu__trigger">
-                  <Node
-                    position={node().position}
-                    id={nodeId}
-                    onMove={position => moveNode(nodeId, position)}
-                    class={clsx(
-                      styles.node,
-                      nodeId === props.atom.selectedNodeId && styles.selected,
-                      styles[node().type],
-                    )}
-                    tabIndex={0}
-                    onDblClick={() => selectNode(nodeId)}
-                  >
-                    <Switch>
-                      <Match when={node().type === 'atom'}>
-                        <AtomNode
-                          selected={nodeId === props.atom.selectedNodeId}
-                          node={node() as AtomNode}
-                          nodeId={nodeId}
-                          onDragHandle={onDragHandle}
-                          setTemporaryEdges={setTemporaryEdges}
-                          onDrop={onDropHandle}
-                          selectNode={() => props.setAtom('selectedNodeId', nodeId)}
-                          removeNode={() => removeNode(nodeId)}
-                          toggleEmit={() => toggleEmitNode(nodeId)}
-                        />
-                      </Match>
-                      <Match when={node().type === 'props'}>
-                        <PropsNode
-                          atomId={props.atomId}
-                          props={props.atom.props}
-                          nodeId={nodeId}
-                          onDragHandle={onDragHandle}
-                          setTemporaryEdges={setTemporaryEdges}
-                          onDrop={onDropHandle}
-                          setProps={_props => props.setAtom('props', _props)}
-                          removeNode={() => removeNode(nodeId)}
-                        />
-                      </Match>
-                    </Switch>
-                  </Node>
-                </ContextMenu.Trigger>
-              </ContextMenu.Root>
-            )
-          }}
-        </For>
-      </Html>
-      <Show when={temporaryEdges()}>
-        {edge => (
-          <Edge start={edge().start} end={edge().end} class={styles.edge}>
-            {(start, end) => <Step start={start} end={end} />}
-          </Edge>
-        )}
-      </Show>
-    </Graph>
+        </Show>
+      </Graph>
+    </ctxContext.Provider>
   )
 }

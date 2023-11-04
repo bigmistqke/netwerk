@@ -221,8 +221,6 @@ class Network {
       .filter(node => node.used)
       .map(node => {
         let body = intermediaryToCode({ ctx, intermediary: node.intermediary, cache }).join('')
-        console.log('node.dependencies:', node.dependencies)
-
         const dependencies = Array.from(node.dependencies)
           .map(d => `equals.${d.value}`)
           .join(', ')

@@ -1,21 +1,10 @@
 import { AiFillTool } from 'solid-icons/ai'
-import {
-  Accessor,
-  Component,
-  For,
-  Show,
-  createContext,
-  createEffect,
-  createMemo,
-  createSignal,
-  createUniqueId,
-  useContext,
-} from 'solid-js'
+import { Component, For, Show, createSignal, createUniqueId } from 'solid-js'
 import { SetStoreFunction, createStore } from 'solid-js/store'
 import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
-import { compileGraph, getAtomFromContext } from './compilation'
+import { getAtomFromContext } from './compilation'
 import { ctx } from './ctx'
 import type {
   Atom,
@@ -30,6 +19,7 @@ import type {
 
 import clsx from 'clsx'
 import styles from './App.module.css'
+import { Editor } from './Editor'
 import { Button, IconButton, LabelButton } from './components/Button'
 import { Toggle } from './components/Switch'
 import { Title } from './components/Title'
@@ -110,12 +100,6 @@ const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) 
     </div>
   )
 }
-
-const ctxContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
-  ctx,
-  result: () => undefined,
-})
-export const useCtx = () => useContext(ctxContext)
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ libId: keyof Ctx['lib']; atomId: string }>({
@@ -314,132 +298,101 @@ const App: Component = () => {
       atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
     )
   }
-  const setCurrentAtom = (...args: any[]) => setSelf(selected().atomId, ...args)
-
-  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
-    prev => {
-      try {
-        const _selectedAtom = selectedAtom()
-        if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
-        const fn = compileGraph({
-          ctx,
-          graph: _selectedAtom,
-          path: selected(),
-        })
-        return fn
-      } catch (error) {
-        console.error('error while compiling graph:', error)
-        return prev
-      }
-    },
-    { fn: () => {}, time: 0 },
-  )
-
-  createEffect(() => {
-    const fn = compiledGraph().fn
-    if (fn) setSelf(selected().atomId, 'fn', () => fn)
-  })
-
-  const [result, setResult] = createSignal()
-
-  createEffect(() => {
-    const props = resolveProps()
-    const fn = compiledGraph().fn
-    /* setTimeout(() => */ setResult(fn({ ctx, props })) /* , 0) */
-  })
+  const setCurrentAtom = (...args: any[]) => {
+    return selected().libId === 'self' ? setSelf(selected().atomId, ...args) : undefined
+  }
 
   return (
-    <ctxContext.Provider
-      value={{
-        ctx,
-        result,
-      }}
-    >
-      <div class={styles.panels}>
-        <div class={styles.panel}>
-          <Title title="Atoms" />
-          <div>
-            {Object.entries(ctx.lib).map(([libId, _package]) => (
-              <div class={styles.panel}>
-                <Title title={libId} as="h3" class={styles.packageHeading}>
-                  <span>{libId}</span>
-                  {libId === 'self' ? (
-                    <Button onClick={createAtom} label="add new atom">
-                      +
-                    </Button>
-                  ) : undefined}
-                </Title>
-                <ul class={styles.list}>
-                  {Object.keys(_package).map(atomId => (
-                    <li>
-                      <LabelButton
-                        label={atomId}
-                        onClick={() =>
-                          addNodeToSelectedNetworkAtom(_package[atomId], { libId: libId, atomId })
-                        }
-                      >
-                        <IconButton
-                          icon={<AiFillTool />}
-                          label="edit"
-                          onClick={() => setSelected({ libId: libId as keyof Ctx, atomId })}
-                          stopPropagation
-                        />
-                      </LabelButton>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div class={clsx(styles.panel, styles.panel__network)}>
-          <Toggle
-            class={styles.darkModeToggle}
-            checked={isDarkMode()}
-            onChange={checked => {
-              if (checked) {
-                document.body.classList.remove('dark')
-                document.body.classList.add('light')
-              } else {
-                document.body.classList.add('dark')
-                document.body.classList.remove('light')
-              }
-            }}
-          />
-          <Show when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}>
-            {atom => (
-              <>
-                <ParameterPanel atom={atom()} setAtom={setCurrentAtom} />
-                <Network
-                  atomId={selected().atomId}
-                  atom={atom()}
-                  setAtom={setCurrentAtom}
-                  ctx={ctx}
-                />
-              </>
-            )}
-          </Show>
-        </div>
-        <div class={styles.panel}>
-          <Title title="Compilation" />
-          <div class={styles.panel__code}>
-            <span innerHTML={`(${compiledGraph().fn.toString()})`} />
-            <span
-              innerHTML={`({ "props": ${JSON.stringify(
-                resolveProps(),
-                null,
-                2,
-              )}, "ctx": ${JSON.stringify(ctx, null, 2)}
-})`}
-            />
-          </div>
-          <Title title="Compilation Time" />
-          <div class={styles.panelContent}>{compiledGraph().time.toFixed(3)}ms</div>
-          <Title title="Result" />
-          <div class={styles.panelContent}>{result()}</div>
+    <div class={styles.panels}>
+      <div class={styles.panel}>
+        <Title title="Atoms" />
+        <div>
+          {Object.entries(ctx.lib).map(([libId, _package]) => (
+            <div class={styles.panel}>
+              <Title title={libId} as="h3" class={styles.packageHeading}>
+                <span>{libId}</span>
+                {libId === 'self' ? (
+                  <Button onClick={createAtom} label="add new atom">
+                    +
+                  </Button>
+                ) : undefined}
+              </Title>
+              <ul class={styles.list}>
+                {Object.keys(_package).map(atomId => (
+                  <li>
+                    <LabelButton
+                      label={atomId}
+                      onClick={() =>
+                        addNodeToSelectedNetworkAtom(_package[atomId], { libId: libId, atomId })
+                      }
+                    >
+                      <IconButton
+                        icon={<AiFillTool />}
+                        label="edit"
+                        onClick={() => setSelected({ libId: libId as keyof Ctx, atomId })}
+                        stopPropagation
+                      />
+                    </LabelButton>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </div>
-    </ctxContext.Provider>
+      <div class={clsx(styles.panel, styles.panel__network)}>
+        <Toggle
+          class={styles.darkModeToggle}
+          checked={isDarkMode()}
+          onChange={checked => {
+            if (checked) {
+              document.body.classList.remove('dark')
+              document.body.classList.add('light')
+            } else {
+              document.body.classList.add('dark')
+              document.body.classList.remove('light')
+            }
+          }}
+        />
+        <Show
+          when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}
+          fallback={<Editor code={selectedAtom()?.fn} path={selected()} />}
+        >
+          {atom => (
+            <>
+              <ParameterPanel atom={atom()} setAtom={setCurrentAtom} />
+              <Network
+                atomId={selected().atomId}
+                atom={atom()}
+                setAtom={setCurrentAtom}
+                ctx={ctx}
+                setSelf={setSelf}
+                path={selected()}
+                resolvedProps={resolveProps()}
+              />
+            </>
+          )}
+        </Show>
+      </div>
+      {/* <div class={styles.panel}>
+        <Title title="Compilation" />
+        <div class={styles.panel__code}>
+          <span innerHTML={`(${compiledGraph().fn.toString()})`} />
+          <span
+            innerHTML={`({ "props": ${JSON.stringify(
+              resolveProps(),
+              null,
+              2,
+            )}, "ctx": ${JSON.stringify(ctx, null, 2)}
+})`}
+          />
+        </div>
+        <Title title="Compilation Time" />
+        <div class={styles.panelContent}>{compiledGraph().time.toFixed(3)}ms</div>
+        <Title title="Result" />
+        <div class={styles.panelContent}>{result()}</div>
+      </div> */}
+    </div>
   )
 }
 
