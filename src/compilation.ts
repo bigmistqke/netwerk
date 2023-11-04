@@ -232,12 +232,22 @@ class Network {
         return `const __node__${node.id} = ${body};`
       })
 
-    const body = [compare, ...used_nodes, `return ${code.join('')}\n`]
+    const body = [...used_nodes, `return ${code.join('')}\n`]
       /* prefix with padding */
-      .map(v => `\n  ${v}`)
-      .join('')
+      .map(v => `\n    ${v}`)
+      .join('\n')
 
-    return `({props, ctx}) => {${body}}`
+    const dependencies = Object.keys(this.graph.props)
+      .map(d => `equals.${d}`)
+      .join(', ')
+
+    return `({props, ctx}) => {
+  ${compare}
+  return ctx.memo(() => {${body}}, 
+  "main", 
+  [${dependencies}]
+  )
+}`
   }
 }
 

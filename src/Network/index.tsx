@@ -220,10 +220,6 @@ const AtomNode = (props: {
     (props.selected && runtime.result() !== undefined && runtime.result()) ||
     (props.node.emits && value() !== undefined && value())
 
-  createEffect(() => {
-    console.log('current', currentValue())
-  })
-
   return (
     <>
       <AtomNodeContextMenu
