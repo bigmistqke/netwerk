@@ -45,6 +45,7 @@ const std = {
 } satisfies Package
 
 const memo: Record<string, any> = {}
+const previous: Record<string, any> = {}
 
 export const ctx: Ctx = {
   dom: document.createElement('div'),
@@ -74,23 +75,20 @@ export const ctx: Ctx = {
     std,
     self: {},
   },
+  equals: (id, deps) => {
+    const result: ReturnType<Ctx['equals']> = {}
+    if (!(id in previous)) {
+      previous[id] = deps
+      for (const key in deps) result[key] = false
+      return result
+    }
+    for (const key in deps) result[key] = previous[id][key] === deps[key]
+    previous[id] = deps
+    return result
+  },
   memo: (accessor, id, deps) => {
-    if (!(id in memo)) {
-      const value = accessor()
-      memo[id] = { value, deps }
-      return value
-    }
-    let equals = true
-    let index = 0
-    const memo_deps = memo[id].deps
-    for (const dep of deps) {
-      if (dep !== memo_deps[index]) {
-        equals = false
-      }
-      memo_deps[index] = dep
-      index++
-    }
-    return equals ? memo[id].value : accessor()
+    if (!(id in memo)) return (memo[id] = accessor())
+    return (memo[id] = !deps.some(dep => !dep) ? memo[id] : accessor())
   },
 }
 
@@ -101,7 +99,8 @@ export type Ctx = {
     listeners: Record<string, ((value: any) => void)[]>
     addListener: (nodeId: string, callback: (value: any) => void) => () => void
   }
-  memo: (value: Accessor<any>, id: number, dependencies: any[]) => any
+  memo: (value: Accessor<any>, id: number, dependencies: boolean[]) => any
+  equals: (id: string, props: Record<string, any>) => Record<string, any>
   lib: {
     std: typeof std
     self: Package

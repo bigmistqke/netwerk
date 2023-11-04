@@ -321,7 +321,11 @@ const App: Component = () => {
       try {
         const _selectedAtom = selectedAtom()
         if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
-        const fn = compileGraph(ctx, _selectedAtom)
+        const fn = compileGraph({
+          ctx,
+          graph: _selectedAtom,
+          path: selected(),
+        })
         return fn
       } catch (error) {
         console.error('error while compiling graph:', error)

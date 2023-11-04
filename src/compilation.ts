@@ -1,4 +1,4 @@
-import type { Atom, AtomPath, Ctx, Edge, Func, Nodes } from './types'
+import type { Atom, AtomPath, Ctx, Func, NetworkAtom } from './types'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | (() => T[TKey])
@@ -177,6 +177,13 @@ class Network {
   nodes: Node[] = []
   selectedNode: Node | undefined = undefined
   selectNode = (node: Node) => (this.selectedNode = node)
+  graph: NetworkAtom
+  path: AtomPath
+
+  constructor(graph: NetworkAtom, path: AtomPath) {
+    this.graph = graph
+    this.path = path
+  }
 
   createNode<
     TProps extends Record<string, Exclude<any, Function>>,
@@ -206,16 +213,18 @@ class Network {
 
     const code = intermediaryToCode({ ctx, intermediary, cache })
 
-    console.log(cache.node.values())
+    // const compareCode = `const changed = ctx.compare(${})`
 
-    const usedNodesToCode = Array.from(cache.node.values())
+    const compare = `const equals = ctx.equals("${this.path.atomId}", props)`
+
+    const used_nodes = Array.from(cache.node.values())
       .filter(node => node.used)
       .map(node => {
         let body = intermediaryToCode({ ctx, intermediary: node.intermediary, cache }).join('')
         console.log('node.dependencies:', node.dependencies)
 
         const dependencies = Array.from(node.dependencies)
-          .map(d => `props.${d.value}`)
+          .map(d => `equals.${d.value}`)
           .join(', ')
 
         body = node.emits ? `ctx.event.emit("${node.id}", ${body})` : body
@@ -223,7 +232,7 @@ class Network {
         return `const __node__${node.id} = ${body};`
       })
 
-    const body = [...usedNodesToCode, `return ${code.join('')}\n`]
+    const body = [compare, ...used_nodes, `return ${code.join('')}\n`]
       /* prefix with padding */
       .map(v => `\n  ${v}`)
       .join('')
@@ -232,17 +241,10 @@ class Network {
   }
 }
 
-const createIntermediaryFromGraph = (
-  ctx: Ctx,
-  graph: {
-    nodes: Nodes
-    edges: Edge[]
-    selectedNodeId: keyof Nodes
-  },
-) => {
+const createIntermediaryFromGraph = (ctx: Ctx, graph: NetworkAtom, path: AtomPath) => {
   /* reset uuid */
   uuid = { ...uuid_reset }
-  const network = new Network()
+  const network = new Network(graph, path)
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes)
       .map(([nodeId, node]) => {
@@ -378,9 +380,9 @@ const intermediaryToCode = ({
  * compiles NetworkAtom to a single function. simply returns CodeAtom's func-property.
  * @throws `!WARNING!` `!CAN THROW!` `!WARNING!`
  */
-export const compileGraph = (ctx: Ctx, graph: Atom) => {
+export const compileGraph = ({ ctx, graph, path }: { ctx: Ctx; graph: Atom; path: AtomPath }) => {
   let start = performance.now()
-  const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph).toCode(ctx)
+  const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph, path).toCode(ctx)
   // console.info('code is ', code)
   return {
     fn: code ? eval(code) : graph.fn,
