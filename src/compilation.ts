@@ -17,7 +17,7 @@ type NodeCache = {
 }
 type CompilationCache = {
   atom: Map<Func, FunctionCache>
-  node: Map<Node<Record<string, any>, (props: Record<string, any>) => any>, NodeCache>
+  node: Set<Node>
   prop: Map<() => any, string>
 }
 
@@ -70,12 +70,20 @@ const resolveProps = <T>(_props: T) => {
 }
 
 class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
+  /* props */
   atom: T
   path: AtomPath
   props: PropsAccessor<TProps>
   id: string
   emits = false
   updateProps: (props: Partial<PropsAccessor<TProps>>) => void
+
+  /* results analyis */
+  visited = 0
+  used = false
+  intermediary: any
+  dependencies = new Set()
+
   constructor(id: string, path: AtomPath, atom: T, props: PropsAccessor<TProps>, emits: boolean) {
     this.id = id
     this.path = path
@@ -92,6 +100,8 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
     let pure = true
     let self = this as Node
 
+    this.visited++
+
     for (const key in props) {
       let prop = this.props[key]!
 
@@ -106,45 +116,22 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
       if (isProp(prop)) {
         props[key] = prop
         pure = false
+        this.dependencies.add(prop)
         continue
       }
 
       /* this prop is a Node */
 
       if (prop instanceof Node) {
-        const node_cache = cache.node.get(prop)
-        if (node_cache) {
-          /* 
-            The prop/node was already initialized in nodeMap:
-            This means that we visited the same node at least two times.
-            We mark the node in the nodeMap as visited.
-            This will initialize node-memoization during code-generation.
-          */
-          node_cache.visited++
-        }
+        prop.intermediary = prop.toIntermediary({ cache, ctx })
 
-        const intermediary = prop.toIntermediary({ cache, ctx })
-
-        if (!node_cache) {
-          /* 
-            we initialize this props/node to the node-pool
-          */
-          cache.node.set(prop, {
-            id: prop.id,
-            visited: 1,
-            intermediary,
-            used: false,
-            emits: prop.emits,
-          })
-        }
-
-        if (intermediary.pure) {
+        if (prop.intermediary.pure) {
           /* 
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
           const result = eval(`${prop.atom.toString()}`)({
-            props: intermediary.props,
+            props: prop.intermediary.props,
             ctx,
           })
           if (prop.emits) ctx.event.emit(prop.id, result)
@@ -156,12 +143,19 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
           if it was impure, we store the intermediary result
         */
         pure = false
-        props[key] = intermediary
+        props[key] = prop.intermediary
         continue
       }
 
       props[key] = prop
     }
+
+    /* 
+      add self to cache.node after iterating over props
+      this way we assure the nodes are added in the correct order
+      when unwinding the nodes in Network.toCode
+    */
+    cache.node.add(self)
 
     if (!cache.atom.has(this.atom)) {
       cache.atom.set(this.atom, { id: `__fn__${uuid.atom++}`, used: false })
@@ -198,7 +192,7 @@ class Network {
     /* !CAUTION! we mutate cache inside toIntermediary !CAUTION! */
     const cache: CompilationCache = {
       atom: new Map(),
-      node: new Map(),
+      node: new Set(),
       prop: new Map(),
     }
 
@@ -209,11 +203,7 @@ class Network {
 
     const intermediary = this.selectedNode?.toIntermediary({ cache, ctx })!
 
-    const code = intermediaryToCode({ ctx, intermediary, cache, visited: 0 })
-
-    /* const atomsToCode = Array.from(cache.atom.entries())
-      .filter(([, { used }]) => used)
-      .map(([atom, data]) => `const ${data.id} = ${atom.toString()};`) */
+    const code = intermediaryToCode({ ctx, intermediary, cache })
 
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
@@ -303,18 +293,14 @@ const intermediaryToCode = ({
   ctx,
   intermediary,
   cache,
-  visited,
 }: {
   ctx: Ctx
   intermediary: ReturnType<Node['toIntermediary']>
   cache: CompilationCache
-  visited: number
 }): [fn: string, arg: string] | [empty: '', result: string | number] => {
   if (cache.atom.has(intermediary.atom)) {
     cache.atom.get(intermediary.atom)!.used = true
   }
-
-  const parentNode = cache.node.get(intermediary.node)
 
   let fnString = ''
 
@@ -352,13 +338,11 @@ const intermediaryToCode = ({
         currently we are dynamically linking, without any typechecks.
       */
 
-      const [, arg] = intermediaryToCode({ ctx, intermediary: prop, cache, visited })
+      const [, arg] = intermediaryToCode({ ctx, intermediary: prop, cache })
 
-      const node = cache.node.get(prop.node)
-
-      if (node && node?.visited > (parentNode?.visited || 0)) {
-        node.used = true
-        argString += `__node__${node.id}`
+      if (prop.node && prop.node?.visited > (intermediary.node.visited || 0)) {
+        prop.node.used = true
+        argString += `__node__${prop.node.id}`
         argString += ','
         continue
       }
