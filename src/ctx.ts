@@ -39,6 +39,7 @@ const std = {
       dom.appendChild(container)
       return result => (container.textContent = result)
     },
+    props: {},
   },
 } satisfies Package
 
@@ -70,6 +71,7 @@ export const ctx: Ctx = {
     std,
     self: {},
   },
+  memo: value => value,
 }
 
 export type Ctx = {
@@ -79,6 +81,7 @@ export type Ctx = {
     listeners: Record<string, ((value: any) => void)[]>
     addListener: (nodeId: string, callback: (value: any) => void) => () => void
   }
+  memo: (value: any, id: number) => void
   lib: {
     std: typeof std
     self: Package

@@ -29,7 +29,7 @@ export interface NetworkAtom extends AtomBase {
   returnType: DataType
 }
 
-export interface RendererAtom {
+export interface RendererAtom extends AtomBase {
   type: 'renderer'
   fn: (arg: { ctx: Ctx; dom: HTMLElement }) => (result: any) => void
 }
