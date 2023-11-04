@@ -5,8 +5,6 @@ import {
   For,
   Show,
   createContext,
-  createEffect,
-  createMemo,
   createSignal,
   createUniqueId,
   useContext,
@@ -15,26 +13,24 @@ import { SetStoreFunction, createStore } from 'solid-js/store'
 import zeptoid from 'zeptoid'
 
 import Network from './Network/index'
-import { compileGraph, getAtomFromContext } from './compilation'
+import { getAtomFromContext } from './compilation'
 import { ctx } from './ctx'
-import type {
-  Atom,
-  AtomNode,
-  AtomPath,
-  Ctx,
-  Func,
-  NetworkAtom,
-  Package,
-  RendererNode,
-} from './types'
+import type { Atom, AtomNode, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
 
 import clsx from 'clsx'
 import styles from './App.module.css'
+import { Editor } from './Editor'
 import { Button, IconButton, LabelButton } from './components/Button'
 import { Toggle } from './components/Switch'
 import { Title } from './components/Title'
 import { isDarkMode } from './utils/isDarkMode'
 import { when } from './utils/when'
+
+const runtimeContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
+  ctx,
+  result: () => undefined,
+})
+export const useRuntime = () => useContext(runtimeContext)
 
 const createCodeOrNetworkNode = (ctx: Ctx, path: AtomPath): Record<string, AtomNode> => {
   const props = getAtomFromContext(ctx, path)!.props
@@ -110,12 +106,6 @@ const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) 
     </div>
   )
 }
-
-const ctxContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
-  ctx,
-  result: () => undefined,
-})
-export const useCtx = () => useContext(ctxContext)
 
 const App: Component = () => {
   const [selected, setSelected] = createSignal<{ libId: keyof Ctx['lib']; atomId: string }>({
@@ -314,42 +304,15 @@ const App: Component = () => {
       atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
     )
   }
-  const setCurrentAtom = (...args: any[]) => setSelf(selected().atomId, ...args)
+  const setCurrentAtom = (...args: any[]) => {
+    return selected().libId === 'self' ? setSelf(selected().atomId, ...args) : undefined
+  }
 
-  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
-    prev => {
-      try {
-        const _selectedAtom = selectedAtom()
-        if (!_selectedAtom) throw `no selected atom for path: ${JSON.stringify(selected())}`
-        const fn = compileGraph({
-          ctx,
-          graph: _selectedAtom,
-          path: selected(),
-        })
-        return fn
-      } catch (error) {
-        console.error('error while compiling graph:', error)
-        return prev
-      }
-    },
-    { fn: () => {}, time: 0 },
-  )
-
-  createEffect(() => {
-    const fn = compiledGraph().fn
-    if (fn) setSelf(selected().atomId, 'fn', () => fn)
-  })
-
+  const [compiledGraph, setCompiledGraph] = createSignal()
   const [result, setResult] = createSignal()
 
-  createEffect(() => {
-    const props = resolveProps()
-    const fn = compiledGraph().fn
-    /* setTimeout(() => */ setResult(fn({ ctx, props })) /* , 0) */
-  })
-
   return (
-    <ctxContext.Provider
+    <runtimeContext.Provider
       value={{
         ctx,
         result,
@@ -406,7 +369,10 @@ const App: Component = () => {
               }
             }}
           />
-          <Show when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}>
+          <Show
+            when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}
+            fallback={<Editor code={selectedAtom()?.fn} path={selected()} />}
+          >
             {atom => (
               <>
                 <ParameterPanel atom={atom()} setAtom={setCurrentAtom} />
@@ -415,6 +381,11 @@ const App: Component = () => {
                   atom={atom()}
                   setAtom={setCurrentAtom}
                   ctx={ctx}
+                  setSelf={setSelf}
+                  path={selected()}
+                  resolvedProps={resolveProps()}
+                  setCompiledGraph={setCompiledGraph}
+                  setResult={setResult}
                 />
               </>
             )}
@@ -423,7 +394,7 @@ const App: Component = () => {
         <div class={styles.panel}>
           <Title title="Compilation" />
           <div class={styles.panel__code}>
-            <span innerHTML={`(${compiledGraph().fn.toString()})`} />
+            <span innerHTML={`(${compiledGraph()?.fn?.toString()})`} />
             <span
               innerHTML={`({ "props": ${JSON.stringify(
                 resolveProps(),
@@ -434,12 +405,12 @@ const App: Component = () => {
             />
           </div>
           <Title title="Compilation Time" />
-          <div class={styles.panelContent}>{compiledGraph().time.toFixed(3)}ms</div>
+          <div class={styles.panelContent}>{compiledGraph()?.time.toFixed(3)}ms</div>
           <Title title="Result" />
           <div class={styles.panelContent}>{result()}</div>
         </div>
       </div>
-    </ctxContext.Provider>
+    </runtimeContext.Provider>
   )
 }
 

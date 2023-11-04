@@ -32,7 +32,7 @@ const std = {
       },
     },
   },
-  domRenderer: {
+  simple_renderer: {
     type: 'renderer',
     fn: ({ dom }) => {
       dom.innerHTML = ''
@@ -88,13 +88,12 @@ export const ctx: Ctx = {
   },
   memo: (accessor, id, deps) => {
     if (!(id in memo)) return (memo[id] = accessor())
-    if (!deps.some(dep => !dep)) console.log('use cached value for', id, ':', memo[id])
+    // if (!deps.some(dep => !dep)) console.log('use cached value for', id, ':', memo[id])
     return (memo[id] = !deps.some(dep => !dep) ? memo[id] : accessor())
   },
 }
 
 export type Ctx = {
-  dom: HTMLElement
   event: {
     emit: (value: any, id: string) => any
     listeners: Record<string, ((value: any) => void)[]>

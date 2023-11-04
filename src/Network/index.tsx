@@ -5,9 +5,11 @@ import {
   For,
   Index,
   Match,
+  Setter,
   Show,
   Switch,
   createEffect,
+  createMemo,
   createRenderEffect,
   createSignal,
   onCleanup,
@@ -18,18 +20,21 @@ import type { SetStoreFunction } from 'solid-js/store'
 
 import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
 import type { Vector } from '@lib/spagett/types'
-import { useCtx as useRuntime } from '../App'
 import type {
   Atom,
   AtomNode,
   AtomNode as AtomNodeType,
+  AtomPath,
   Ctx,
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
+  Package,
   PropsNode,
 } from '../types'
 
+import { useRuntime } from '../App'
+import { compileGraph } from '../compilation'
 import styles from './Network.module.css'
 
 const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) => {
@@ -183,7 +188,7 @@ const Renderer = (props: { value: any }) => {
   let dom: HTMLDivElement
   const runtime = useRuntime()
   onMount(() => {
-    const render = runtime.ctx.lib.std.domRenderer.fn({ dom, ctx: runtime.ctx })
+    const render = runtime.ctx.lib.std.simple_renderer.fn({ dom, ctx: runtime.ctx })
     createEffect(() => render(props.value))
   })
   return <div ref={dom!} class={clsx(styles.rendererNode, styles.node)} />
@@ -299,6 +304,11 @@ export default function Network(props: {
   atom: NetworkAtom
   setAtom: SetStoreFunction<NetworkAtom>
   ctx: Ctx
+  setSelf: SetStoreFunction<Package>
+  path: AtomPath
+  resolvedProps?: Record<string, any>
+  setResult: Setter<any>
+  setCompiledGraph: Setter<ReturnType<typeof compileGraph>>
 }) {
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -357,6 +367,38 @@ export default function Network(props: {
 
   const onDropHandle = (start: HandleType, end: HandleType) =>
     validateDrop(start, end) && addEdge({ start, end })
+
+  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
+    prev => {
+      try {
+        if (!props.atom) throw `no selected atom for path: ${JSON.stringify(props.path)}`
+        const fn = compileGraph({
+          ctx: props.ctx,
+          graph: props.atom,
+          path: props.path,
+        })
+        return fn
+      } catch (error) {
+        console.error('error while compiling graph:', error)
+        return prev
+      }
+    },
+    { fn: () => {}, time: 0 },
+  )
+
+  createEffect(() => {
+    const fn = compiledGraph().fn
+    if (fn) props.setSelf(props.path.atomId, 'fn', () => fn)
+  })
+
+  createEffect(() => {
+    props.setCompiledGraph(compiledGraph())
+  })
+
+  createEffect(() => {
+    const fn = compiledGraph().fn
+    props.setResult(fn({ ctx: props.ctx, props: props.resolvedProps }))
+  })
 
   return (
     <Graph

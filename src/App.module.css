@@ -49,10 +49,6 @@
   flex-wrap: wrap;
 }
 
-.panelContent {
-  padding: var(--margin-50) calc(var(--margin) * 2);
-}
-
 .darkModeToggle {
   position: absolute;
   right: 0px;

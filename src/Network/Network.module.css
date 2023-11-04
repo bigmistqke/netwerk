@@ -145,6 +145,10 @@
   transform: translate(100%);
 }
 
+.panelContent {
+  padding: var(--margin-50) calc(var(--margin) * 2);
+}
+
 /* context-menu styling taken from kobalte.dev */
 .context-menu__content,
 .context-menu__sub-content {
