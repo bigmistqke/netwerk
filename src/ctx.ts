@@ -1,3 +1,4 @@
+import { Accessor } from 'solid-js'
 import { Package } from './types'
 
 const std = {
@@ -43,6 +44,8 @@ const std = {
   },
 } satisfies Package
 
+const memo: Record<string, any> = {}
+
 export const ctx: Ctx = {
   dom: document.createElement('div'),
   event: {
@@ -71,7 +74,24 @@ export const ctx: Ctx = {
     std,
     self: {},
   },
-  memo: value => value,
+  memo: (accessor, id, deps) => {
+    if (!(id in memo)) {
+      const value = accessor()
+      memo[id] = { value, deps }
+      return value
+    }
+    let equals = true
+    let index = 0
+    const memo_deps = memo[id].deps
+    for (const dep of deps) {
+      if (dep !== memo_deps[index]) {
+        equals = false
+      }
+      memo_deps[index] = dep
+      index++
+    }
+    return equals ? memo[id].value : accessor()
+  },
 }
 
 export type Ctx = {
@@ -81,7 +101,7 @@ export type Ctx = {
     listeners: Record<string, ((value: any) => void)[]>
     addListener: (nodeId: string, callback: (value: any) => void) => () => void
   }
-  memo: (value: any, id: number) => void
+  memo: (value: Accessor<any>, id: number, dependencies: any[]) => any
   lib: {
     std: typeof std
     self: Package

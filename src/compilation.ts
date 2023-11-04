@@ -124,6 +124,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
 
       if (prop instanceof Node) {
         prop.intermediary = prop.toIntermediary({ cache, ctx })
+        prop.dependencies.forEach(dep => this.dependencies.add(dep))
 
         if (prop.intermediary.pure) {
           /* 
@@ -205,12 +206,20 @@ class Network {
 
     const code = intermediaryToCode({ ctx, intermediary, cache })
 
+    console.log(cache.node.values())
+
     const usedNodesToCode = Array.from(cache.node.values())
       .filter(node => node.used)
       .map(node => {
         let body = intermediaryToCode({ ctx, intermediary: node.intermediary, cache }).join('')
+        console.log('node.dependencies:', node.dependencies)
+
+        const dependencies = Array.from(node.dependencies)
+          .map(d => `props.${d.value}`)
+          .join(', ')
+
         body = node.emits ? `ctx.event.emit("${node.id}", ${body})` : body
-        body = `ctx.memo(${body})`
+        body = `ctx.memo(() => ${body}, "${node.id}", [${dependencies}])`
         return `const __node__${node.id} = ${body};`
       })
 
