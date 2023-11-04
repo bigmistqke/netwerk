@@ -138,7 +138,7 @@ const App: Component = () => {
           },
           position: {
             x: 100,
-            y: 400,
+            y: 600,
           },
           emits: false,
         },
@@ -155,12 +155,42 @@ const App: Component = () => {
             x: 100,
             y: 200,
           },
-          emits: true,
+          emits: false,
+        },
+        sum3: {
+          type: 'atom',
+          path: {
+            libId: 'std',
+            atomId: 'add',
+          },
+          props: {
+            ...ctx.lib.std.add.props,
+          },
+          position: {
+            x: 100,
+            y: 300,
+          },
+          emits: false,
+        },
+        sum4: {
+          type: 'atom',
+          path: {
+            libId: 'std',
+            atomId: 'add',
+          },
+          props: {
+            ...ctx.lib.std.add.props,
+          },
+          position: {
+            x: 100,
+            y: 400,
+          },
+          emits: false,
         },
         props: {
           type: 'props',
           position: {
-            x: 300,
+            x: 500,
             y: 0,
           },
         },
@@ -171,8 +201,24 @@ const App: Component = () => {
           end: { nodeId: 'props', handleId: 'a', type: 'prop' },
         },
         {
-          end: { nodeId: 'sum', handleId: 'b', type: 'input' },
+          end: { nodeId: 'sum3', handleId: 'b', type: 'input' },
           start: { nodeId: 'sum2', handleId: 'output', type: 'output' },
+        },
+        {
+          end: { nodeId: 'sum3', handleId: 'a', type: 'input' },
+          start: { nodeId: 'sum2', handleId: 'output', type: 'output' },
+        },
+        {
+          end: { nodeId: 'sum4', handleId: 'b', type: 'input' },
+          start: { nodeId: 'sum3', handleId: 'output', type: 'output' },
+        },
+        {
+          end: { nodeId: 'sum', handleId: 'b', type: 'input' },
+          start: { nodeId: 'sum4', handleId: 'output', type: 'output' },
+        },
+        {
+          end: { nodeId: 'sum', handleId: 'a', type: 'input' },
+          start: { nodeId: 'sum4', handleId: 'output', type: 'output' },
         },
       ],
       fn: (() => {}) as Func,
@@ -207,10 +253,12 @@ const App: Component = () => {
   let atomId = 0
   const createAtom = () => {
     const id = 'atom' + atomId++
+    const sumId = zeptoid()
+    const propsId = zeptoid()
     setSelf(id, {
       type: 'network',
       nodes: {
-        sum: {
+        [sumId]: {
           type: 'atom',
           path: {
             libId: 'std',
@@ -226,7 +274,7 @@ const App: Component = () => {
           },
           emits: false,
         },
-        props: {
+        [propsId]: {
           type: 'props',
           position: {
             x: 100,
@@ -236,12 +284,12 @@ const App: Component = () => {
       },
       edges: [
         {
-          start: { nodeId: 'sum', handleId: 'b', type: 'input' },
-          end: { nodeId: 'props', handleId: 'b', type: 'prop' },
+          start: { nodeId: sumId, handleId: 'b', type: 'input' },
+          end: { nodeId: propsId, handleId: 'b', type: 'prop' },
         },
         {
-          start: { nodeId: 'sum', handleId: 'a', type: 'input' },
-          end: { nodeId: 'props', handleId: 'a', type: 'prop' },
+          start: { nodeId: sumId, handleId: 'a', type: 'input' },
+          end: { nodeId: propsId, handleId: 'a', type: 'prop' },
         },
       ],
       fn: (() => {}) as Func,
@@ -256,13 +304,12 @@ const App: Component = () => {
         },
       },
       returnType: 'number',
-      selectedNodeId: 'sum',
+      selectedNodeId: sumId,
     } as NetworkAtom)
     setSelected({ libId: 'self', atomId: id })
   }
-  const addNodeToSelectedAtom = (atom: Atom, path: AtomPath) => {
-    setSelf(
-      selected().atomId,
+  const addNodeToSelectedNetworkAtom = (atom: Atom, path: AtomPath) => {
+    setCurrentAtom(
       'nodes',
       atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
     )
@@ -289,8 +336,12 @@ const App: Component = () => {
     if (fn) setSelf(selected().atomId, 'fn', () => fn)
   })
 
-  const result = createMemo(() => {
-    return compiledGraph().fn({ ctx, props: resolveProps() })
+  const [result, setResult] = createSignal()
+
+  createEffect(() => {
+    const props = resolveProps()
+    const fn = compiledGraph().fn
+    /* setTimeout(() => */ setResult(fn({ ctx, props })) /* , 0) */
   })
 
   return (
@@ -320,7 +371,7 @@ const App: Component = () => {
                       <LabelButton
                         label={atomId}
                         onClick={() =>
-                          addNodeToSelectedAtom(_package[atomId], { libId: libId, atomId })
+                          addNodeToSelectedNetworkAtom(_package[atomId], { libId: libId, atomId })
                         }
                       >
                         <IconButton
