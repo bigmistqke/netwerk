@@ -1,54 +1,17 @@
-import { Accessor } from 'solid-js'
-import { Package } from './types'
+import { Accessor, createContext, createEffect, useContext } from 'solid-js'
+import { modules } from './runtime'
 
-const std = {
-  add: {
-    type: 'code',
-    fn: ({ props }) => props.a + props.b,
-    returnType: 'number',
-    props: {
-      a: {
-        type: 'number',
-        value: 1,
-      },
-      b: {
-        type: 'number',
-        value: 1,
-      },
-    },
-  },
-  multiply: {
-    type: 'code',
-    fn: ({ props }) => props.a * props.b,
-    returnType: 'number',
-    props: {
-      a: {
-        type: 'number',
-        value: 1,
-      },
-      b: {
-        type: 'number',
-        value: 1,
-      },
-    },
-  },
-  simple_renderer: {
-    type: 'renderer',
-    fn: ({ dom }) => {
-      dom.innerHTML = ''
-      const container = document.createElement('div')
-      dom.appendChild(container)
-      return result => (container.textContent = result)
-    },
-    props: {},
-  },
-} satisfies Package
+let memo: Record<string, any> = {}
+let previous: Record<string, any> = {}
 
-const memo: Record<string, any> = {}
-const previous: Record<string, any> = {}
+createEffect(() => {
+  JSON.stringify(modules.esm)
+  console.log('reset memo and previous')
+  memo = {}
+  previous = {}
+})
 
 export const ctx: Ctx = {
-  dom: document.createElement('div'),
   event: {
     listeners: {},
     addListener: (nodeId, callback) => {
@@ -71,10 +34,6 @@ export const ctx: Ctx = {
       return value
     },
   },
-  lib: {
-    std,
-    self: {},
-  },
   equals: (id, deps) => {
     const result: ReturnType<Ctx['equals']> = {}
     if (!(id in previous)) {
@@ -91,6 +50,7 @@ export const ctx: Ctx = {
     // if (!deps.some(dep => !dep)) console.log('use cached value for', id, ':', memo[id])
     return (memo[id] = !deps.some(dep => !dep) ? memo[id] : accessor())
   },
+  lib: modules.esm,
 }
 
 export type Ctx = {
@@ -101,8 +61,9 @@ export type Ctx = {
   }
   memo: (value: Accessor<any>, id: number, dependencies: boolean[]) => any
   equals: (id: string, props: Record<string, any>) => Record<string, any>
-  lib: {
-    std: typeof std
-    self: Package
-  } & Record<string, Package>
+  lib: typeof modules.esm
 }
+
+const ctxContext = createContext<Ctx>(ctx)
+export const CtxProvider = ctxContext.Provider
+export const useCtx = () => useContext(ctxContext)

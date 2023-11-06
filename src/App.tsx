@@ -1,68 +1,32 @@
 import { AiFillTool } from 'solid-icons/ai'
-import {
-  Accessor,
-  Component,
-  For,
-  Show,
-  createContext,
-  createSignal,
-  createUniqueId,
-  useContext,
-} from 'solid-js'
-import { SetStoreFunction, createStore } from 'solid-js/store'
-import zeptoid from 'zeptoid'
+import { Component, For, Show, createEffect, createUniqueId } from 'solid-js'
 
-import Network from './Network/index'
-import { getAtomFromContext } from './compilation'
-import { ctx } from './ctx'
-import type { Atom, AtomNode, AtomPath, Ctx, Func, NetworkAtom, Package } from './types'
+import { CtxProvider, ctx } from '@logic/ctx'
+import Network from './panels/Network/index'
+import type { NetworkAtom } from './types'
 
+import { createIntermediaryFromGraph } from '@logic/compiler'
 import clsx from 'clsx'
 import styles from './App.module.css'
-import { Editor } from './Editor'
 import { Button, IconButton, LabelButton } from './components/Button'
-import { Toggle } from './components/Switch'
 import { Title } from './components/Title'
-import { isDarkMode } from './utils/isDarkMode'
+import {
+  addNodeToSelectedAtom,
+  createAtom,
+  packages,
+  selectedAtom,
+  setSelectedAtom,
+  setSelectedPath,
+  store,
+} from './logic/packages'
+import { areModulesLoading, modules } from './logic/runtime'
+import { Editor } from './panels/Editor'
 import { when } from './utils/when'
 
-const runtimeContext = createContext<{ ctx: Ctx; result: Accessor<any> }>({
-  ctx,
-  result: () => undefined,
-})
-export const useRuntime = () => useContext(runtimeContext)
-
-const createCodeOrNetworkNode = (ctx: Ctx, path: AtomPath): Record<string, AtomNode> => {
-  const props = getAtomFromContext(ctx, path)!.props
-  return {
-    [zeptoid()]: {
-      type: 'atom',
-      path,
-      props,
-      /* TODO: add proper positioning of node */
-      position: {
-        x: Math.random() * 400,
-        y: Math.random() * 300,
-      },
-    },
-  }
-}
-
-const createRendererNode = (ctx: Ctx, path: AtomPath): Record<string, RendererNode> => ({
-  [zeptoid()]: {
-    type: 'renderer',
-    path,
-    position: {
-      x: Math.random() * 400,
-      y: Math.random() * 300,
-    },
-  },
-})
-
-const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) => {
+const ParameterPanel = () => {
   return (
     <div class={styles.parameterPanel}>
-      <For each={Object.entries(props.atom.props)}>
+      <For each={Object.entries(selectedAtom().props)}>
         {([propId, prop]) => {
           const id1 = createUniqueId()
           const id2 = createUniqueId()
@@ -74,18 +38,18 @@ const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) 
                 <input
                   id={id1}
                   value={prop.value}
-                  onChange={e => props.setAtom('props', propId, 'value', +e.currentTarget.value)}
+                  onChange={e => setSelectedAtom('props', propId, 'value', +e.currentTarget.value)}
                   onKeyDown={e => {
                     switch (e.key) {
                       case 'ArrowUp':
                         if (prop.type === 'number') {
-                          props.setAtom('props', propId, 'value', value => value + 1)
+                          setSelectedAtom('props', propId, 'value', value => value + 1)
                           e.preventDefault()
                         }
                         break
                       case 'ArrowDown':
                         if (prop.type === 'number') {
-                          props.setAtom('props', propId, 'value', value => value - 1)
+                          setSelectedAtom('props', propId, 'value', value => value - 1)
                           e.preventDefault()
                         }
                         break
@@ -96,7 +60,7 @@ const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) 
                 <input
                   id={id2}
                   value={prop.type}
-                  onChange={e => props.setAtom('props', propId, 'value', +e.currentTarget.value)}
+                  onChange={e => setSelectedAtom('props', propId, 'value', +e.currentTarget.value)}
                 />
               </div>
             </div>
@@ -108,221 +72,41 @@ const ParameterPanel = (props: { atom: Atom; setAtom: SetStoreFunction<Atom> }) 
 }
 
 const App: Component = () => {
-  const [selected, setSelected] = createSignal<{ libId: keyof Ctx['lib']; atomId: string }>({
-    libId: 'self',
-    atomId: 'main',
-  })
-
-  const [self, setSelf] = createStore<Package>({
-    main: {
-      type: 'network',
-      nodes: {
-        sum: {
-          type: 'atom',
-          path: {
-            libId: 'std',
-            atomId: 'add',
-          },
-          props: {
-            ...ctx.lib.std.add.props,
-          },
-          position: {
-            x: 100,
-            y: 600,
-          },
-          emits: false,
-        },
-        sum2: {
-          type: 'atom',
-          path: {
-            libId: 'std',
-            atomId: 'add',
-          },
-          props: {
-            ...ctx.lib.std.add.props,
-          },
-          position: {
-            x: 100,
-            y: 200,
-          },
-          emits: false,
-        },
-        sum3: {
-          type: 'atom',
-          path: {
-            libId: 'std',
-            atomId: 'add',
-          },
-          props: {
-            ...ctx.lib.std.add.props,
-          },
-          position: {
-            x: 100,
-            y: 300,
-          },
-          emits: false,
-        },
-        sum4: {
-          type: 'atom',
-          path: {
-            libId: 'std',
-            atomId: 'add',
-          },
-          props: {
-            ...ctx.lib.std.add.props,
-          },
-          position: {
-            x: 100,
-            y: 400,
-          },
-          emits: false,
-        },
-        props: {
-          type: 'props',
-          position: {
-            x: 500,
-            y: 0,
-          },
-        },
-      },
-      edges: [
-        {
-          start: { nodeId: 'sum2', handleId: 'b', type: 'output' },
-          end: { nodeId: 'props', handleId: 'a', type: 'prop' },
-        },
-        {
-          end: { nodeId: 'sum3', handleId: 'b', type: 'input' },
-          start: { nodeId: 'sum2', handleId: 'output', type: 'output' },
-        },
-        {
-          end: { nodeId: 'sum3', handleId: 'a', type: 'input' },
-          start: { nodeId: 'sum2', handleId: 'output', type: 'output' },
-        },
-        {
-          end: { nodeId: 'sum4', handleId: 'b', type: 'input' },
-          start: { nodeId: 'sum3', handleId: 'output', type: 'output' },
-        },
-        {
-          end: { nodeId: 'sum', handleId: 'b', type: 'input' },
-          start: { nodeId: 'sum4', handleId: 'output', type: 'output' },
-        },
-        {
-          end: { nodeId: 'sum', handleId: 'a', type: 'input' },
-          start: { nodeId: 'sum4', handleId: 'output', type: 'output' },
-        },
-      ],
-      fn: (() => {}) as Func,
-      props: {
-        a: {
-          value: 0,
-          type: 'number',
-        },
-        b: {
-          value: 1,
-          type: 'number',
-        },
-      },
-      returnType: 'number',
-      selectedNodeId: 'sum',
-    },
-  })
-  ctx.lib.self = self
-  window.ctx = ctx
-
-  const selectedAtom = () => getAtomFromContext(ctx, selected())
-
-  const resolveProps = () =>
-    selectedAtom() &&
+  const resolvedProps = () =>
     Object.fromEntries(
-      Object.entries(selectedAtom()!.props).map(([id, { value }]) => [
+      Object.entries(selectedAtom().props).map(([id, { value }]) => [
         id,
         typeof value === 'function' ? value() : value,
       ]),
     )
 
-  let atomId = 0
-  const createAtom = () => {
-    const id = 'atom' + atomId++
-    const sumId = zeptoid()
-    const propsId = zeptoid()
-    setSelf(id, {
-      type: 'network',
-      nodes: {
-        [sumId]: {
-          type: 'atom',
-          path: {
-            libId: 'std',
-            atomId: 'add',
-          },
-          fn: ctx.lib.std.add,
-          props: {
-            ...ctx.lib.std.add.props,
-          },
-          position: {
-            x: 100,
-            y: 400,
-          },
-          emits: false,
-        },
-        [propsId]: {
-          type: 'props',
-          position: {
-            x: 100,
-            y: 100,
-          },
-        },
-      },
-      edges: [
-        {
-          start: { nodeId: sumId, handleId: 'b', type: 'input' },
-          end: { nodeId: propsId, handleId: 'b', type: 'prop' },
-        },
-        {
-          start: { nodeId: sumId, handleId: 'a', type: 'input' },
-          end: { nodeId: propsId, handleId: 'a', type: 'prop' },
-        },
-      ],
-      fn: (() => {}) as Func,
-      props: {
-        a: {
-          value: 0,
-          type: 'number',
-        },
-        b: {
-          value: 0,
-          type: 'number',
-        },
-      },
-      returnType: 'number',
-      selectedNodeId: sumId,
-    } as NetworkAtom)
-    setSelected({ libId: 'self', atomId: id })
-  }
-  const addNodeToSelectedNetworkAtom = (atom: Atom, path: AtomPath) => {
-    setCurrentAtom(
-      'nodes',
-      atom.type === 'renderer' ? createRendererNode(ctx, path) : createCodeOrNetworkNode(ctx, path),
-    )
-  }
-  const setCurrentAtom = (...args: any[]) => {
-    return selected().libId === 'self' ? setSelf(selected().atomId, ...args) : undefined
-  }
+  createEffect(() => {
+    console.log(areModulesLoading())
+    if (areModulesLoading()) return
+    const { atomId, libId } = store.selectedPath
+    console.log('execute:', modules.esm[libId][atomId]?.({ props: resolvedProps(), ctx }))
+  })
 
-  const [compiledGraph, setCompiledGraph] = createSignal()
-  const [result, setResult] = createSignal()
+  createEffect(() => {
+    const atom = selectedAtom()
+    if (atom.type === 'network') {
+      const intermediary = createIntermediaryFromGraph({
+        ctx,
+        atom,
+        path: store.selectedPath,
+      })
+      const code = intermediary.toCode(ctx)
+      setSelectedAtom('code', code)
+    }
+  })
 
   return (
-    <runtimeContext.Provider
-      value={{
-        ctx,
-        result,
-      }}
-    >
+    <CtxProvider value={ctx}>
       <div class={styles.panels}>
         <div class={styles.panel}>
           <Title title="Atoms" />
           <div>
-            {Object.entries(ctx.lib).map(([libId, _package]) => (
+            {Object.entries(packages).map(([libId, _package]) => (
               <div class={styles.panel}>
                 <Title title={libId} as="h3" class={styles.packageHeading}>
                   <span>{libId}</span>
@@ -337,14 +121,12 @@ const App: Component = () => {
                     <li>
                       <LabelButton
                         label={atomId}
-                        onClick={() =>
-                          addNodeToSelectedNetworkAtom(_package[atomId], { libId: libId, atomId })
-                        }
+                        onClick={() => addNodeToSelectedAtom({ libId, atomId })}
                       >
                         <IconButton
                           icon={<AiFillTool />}
                           label="edit"
-                          onClick={() => setSelected({ libId: libId as keyof Ctx, atomId })}
+                          onClick={() => setSelectedPath({ libId, atomId })}
                           stopPropagation
                         />
                       </LabelButton>
@@ -356,61 +138,21 @@ const App: Component = () => {
           </div>
         </div>
         <div class={clsx(styles.panel, styles.panel__network)}>
-          <Toggle
-            class={styles.darkModeToggle}
-            checked={isDarkMode()}
-            onChange={checked => {
-              if (checked) {
-                document.body.classList.remove('dark')
-                document.body.classList.add('light')
-              } else {
-                document.body.classList.add('dark')
-                document.body.classList.remove('light')
-              }
-            }}
-          />
           <Show
             when={when(selectedAtom)(atom => 'nodes' in atom && (atom as NetworkAtom))}
-            fallback={<Editor code={selectedAtom()?.fn} path={selected()} />}
+            fallback={<Editor code={selectedAtom().code} path={store.selectedPath} />}
           >
             {atom => (
               <>
-                <ParameterPanel atom={atom()} setAtom={setCurrentAtom} />
-                <Network
-                  atomId={selected().atomId}
-                  atom={atom()}
-                  setAtom={setCurrentAtom}
-                  ctx={ctx}
-                  setSelf={setSelf}
-                  path={selected()}
-                  resolvedProps={resolveProps()}
-                  setCompiledGraph={setCompiledGraph}
-                  setResult={setResult}
-                />
+                <ParameterPanel atom={atom()} setAtom={setSelectedAtom} />
+                <Network networkAtom={atom()} resolvedProps={resolvedProps()} />
               </>
             )}
           </Show>
         </div>
-        <div class={styles.panel}>
-          <Title title="Compilation" />
-          <div class={styles.panel__code}>
-            <span innerHTML={`(${compiledGraph()?.fn?.toString()})`} />
-            <span
-              innerHTML={`({ "props": ${JSON.stringify(
-                resolveProps(),
-                null,
-                2,
-              )}, "ctx": ${JSON.stringify(ctx, null, 2)}
-})`}
-            />
-          </div>
-          <Title title="Compilation Time" />
-          <div class={styles.panelContent}>{compiledGraph()?.time.toFixed(3)}ms</div>
-          <Title title="Result" />
-          <div class={styles.panelContent}>{result()}</div>
-        </div>
+        <div class={styles.panel}></div>
       </div>
-    </runtimeContext.Provider>
+    </CtxProvider>
   )
 }
 

@@ -1,7 +1,8 @@
+import { selectedAtom, setSelectedAtom } from '@logic/packages'
 import loader from '@monaco-editor/loader'
-import { createEffect, createSignal, onMount } from 'solid-js'
-import { AtomPath } from 'src/types'
-import { when } from '../utils/when'
+import { AtomPath } from '@src/types'
+import { when } from '@src/utils/when'
+import { createEffect, createSignal, on, onMount } from 'solid-js'
 
 type Monaco =
   typeof import('/Users/bigmistqke/Documents/GitHub/nodebox-3.0/node_modules/.pnpm/monaco-editor@0.44.0/node_modules/monaco-editor/esm/vs/editor/editor.api')
@@ -10,7 +11,7 @@ type Editor = ReturnType<Monaco['editor']['create']>
 const [monaco, setMonaco] = createSignal<Monaco>()
 loader.init().then(m => setMonaco(m))
 
-export const Editor = (props: { code?: (...args: any) => any; path: AtomPath }) => {
+export const Editor = (props: { code?: string; path: AtomPath }) => {
   let div: HTMLDivElement
 
   const [editor, setEditor] = createSignal<Editor>()
@@ -149,10 +150,19 @@ export const Editor = (props: { code?: (...args: any) => any; path: AtomPath }) 
         'node_modules/@types/external/index.d.ts',
       )
     })
+    createEffect(
+      on(selectedAtom, () => {
+        when(editor)(editor => {
+          editor.setValue(`${props.code}`)
+        })
+      }),
+    )
     createEffect(() => {
       when(editor)(editor => {
-        editor.setValue(`// some comment
-ctx.lib.${props.path.libId}.${props.path.atomId}.fn = ${props.code}`)
+        editor.onDidChangeModelContent(function (e) {
+          console.log('e is ', editor.getValue())
+          setSelectedAtom('code', editor.getValue())
+        })
       })
     })
   })

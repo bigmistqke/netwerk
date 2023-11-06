@@ -1,4 +1,5 @@
-import type { Atom, AtomPath, Ctx, Func, NetworkAtom } from './types'
+import type { Atom, AtomPath, Ctx, Func, NetworkAtom } from '@src/types'
+import { packages } from './packages'
 
 type PropsAccessor<T = any> = {
   [TKey in keyof T]: T[TKey] | Node | (() => T[TKey])
@@ -7,13 +8,6 @@ type PropsAccessor<T = any> = {
 type FunctionCache = {
   id: string
   used: boolean
-}
-type NodeCache = {
-  id: string
-  visited: number
-  intermediary: any
-  used: boolean
-  emits: boolean
 }
 type CompilationCache = {
   atom: Map<Func, FunctionCache>
@@ -32,23 +26,23 @@ let uuid = { ...uuid_reset }
 const $PROP = Symbol('prop')
 const isProp = (value: any) => typeof value === 'object' && $PROP in value
 
-export const getAtomFromContext = (ctx: Ctx, path: AtomPath): Atom | undefined => {
-  const result = ctx.lib[path?.libId]?.[path?.atomId]
+export const getAtom = (path: AtomPath): Atom | undefined => {
+  const result = packages[path.libId]?.[path.atomId]
   if (!result) {
-    console.error('getAtomFromContext is undefined:', ctx, path, ctx.lib[path?.libId])
+    console.error('getAtom is undefined', packages, path)
   }
   return result
 }
 
-export const getFnFromContext = (ctx: Ctx, path: AtomPath): Func | undefined => {
-  const result = getAtomFromContext(ctx, path)?.fn
+export const getCode = (path: AtomPath): Func | undefined => {
+  const result = getAtom(path)?.code
   if (!result) {
-    console.error('getFuncFromContext is undefined:', ctx, path)
+    console.error('getFuncFromContext is undefined:', path)
   }
   return result
 }
 
-const generateCodeFromAtomPath = (path: AtomPath) => `ctx.lib.${path.libId}.${path.atomId}.fn`
+const generateCodeFromAtomPath = (path: AtomPath) => `ctx.lib.${path.libId}.${path.atomId}`
 
 const resolveProps = <T>(_props: T) => {
   const props = {} as T
@@ -71,7 +65,7 @@ const resolveProps = <T>(_props: T) => {
 
 class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any> {
   /* props */
-  atom: T
+  fn: T
   path: AtomPath
   props: PropsAccessor<TProps>
   id: string
@@ -84,10 +78,10 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
   intermediary: any
   dependencies = new Set()
 
-  constructor(id: string, path: AtomPath, atom: T, props: PropsAccessor<TProps>, emits: boolean) {
+  constructor(id: string, path: AtomPath, fn: T, props: PropsAccessor<TProps>, emits: boolean) {
     this.id = id
     this.path = path
-    this.atom = atom
+    this.fn = fn
     this.emits = emits
     this.props = { ...props }
     this.updateProps = props => (this.props = { ...this.props, ...props })
@@ -131,7 +125,7 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
             if the compilation-result of this node is pure,
             we can immediately execute the result.
           */
-          const result = eval(`${prop.atom.toString()}`)({
+          const result = eval(`${prop.fn.toString()}`)({
             props: prop.intermediary.props,
             ctx,
           })
@@ -158,27 +152,28 @@ class Node<TProps = Record<string, any>, T extends Func = (props: TProps) => any
     */
     cache.node.add(self)
 
-    if (!cache.atom.has(this.atom)) {
-      cache.atom.set(this.atom, { id: `__fn__${uuid.atom++}`, used: false })
+    if (!cache.atom.has(this.fn)) {
+      cache.atom.set(this.fn, { id: `__fn__${uuid.atom++}`, used: false })
     }
 
     return {
       pure,
-      atom: this.atom,
+      atom: this.fn,
       path: self.path,
       props,
       node: self,
     }
   }
-  exec = () => (this.atom instanceof Network ? this.atom.exec() : this.atom(this.resolveProps()))
+  exec = () => (this.fn instanceof Intermediary ? this.fn.exec() : this.fn(this.resolveProps()))
 }
 
-class Network {
+class Intermediary {
   nodes: Node[] = []
   selectedNode: Node | undefined = undefined
   selectNode = (node: Node) => (this.selectedNode = node)
   graph: NetworkAtom
   path: AtomPath
+  dependencies: Set<AtomPath> = new Set()
 
   constructor(graph: NetworkAtom, path: AtomPath) {
     this.graph = graph
@@ -239,7 +234,7 @@ class Network {
       .map(d => `equals.${d}`)
       .join(', ')
 
-    return `({props, ctx}) => {
+    return `export default ({props, ctx}) => {
   ${compare}
   return ctx.memo(() => {${body}}, 
   "main", 
@@ -249,25 +244,34 @@ class Network {
   }
 }
 
-const createIntermediaryFromGraph = (ctx: Ctx, graph: NetworkAtom, path: AtomPath) => {
+export const createIntermediaryFromGraph = ({
+  ctx,
+  atom: graph,
+  path,
+}: {
+  ctx: Ctx
+  atom: NetworkAtom
+  path: AtomPath
+}) => {
   /* reset uuid */
   uuid = { ...uuid_reset }
-  const network = new Network(graph, path)
+  const intermediary = new Intermediary(graph, path)
   const nodes = Object.fromEntries(
     Object.entries(graph.nodes)
       .map(([nodeId, node]) => {
         if (node.type === 'props') return [nodeId, undefined]
         if (node.type === 'renderer') return [nodeId, undefined]
 
-        const fn = getFnFromContext(ctx, node.path)
-        if (!fn) throw 'could not find fn'
+        const code = getCode(node.path)
+
+        if (!code) throw 'could not find code'
 
         return [
           nodeId,
-          network.createNode(
+          intermediary.createNode(
             nodeId,
             node.path,
-            fn,
+            code,
             'props' in node
               ? Object.fromEntries(
                   Object.entries(node.props).map(([id, prop]) => {
@@ -303,9 +307,9 @@ const createIntermediaryFromGraph = (ctx: Ctx, graph: NetworkAtom, path: AtomPat
       [edge.end.handleId]: nodes[edge.start.nodeId],
     })
   }
-  network.selectNode(nodes[graph.selectedNodeId])
+  intermediary.selectNode(nodes[graph.selectedNodeId])
 
-  return network
+  return intermediary
 }
 
 const intermediaryToCode = ({
@@ -388,12 +392,12 @@ const intermediaryToCode = ({
  * compiles NetworkAtom to a single function. simply returns CodeAtom's func-property.
  * @throws `!WARNING!` `!CAN THROW!` `!WARNING!`
  */
-export const compileGraph = ({ ctx, graph, path }: { ctx: Ctx; graph: Atom; path: AtomPath }) => {
+/* export const compileGraph = ({ ctx, graph, path }: { ctx: Ctx; graph: Atom; path: AtomPath }) => {
   let start = performance.now()
-  const code = 'nodes' in graph && createIntermediaryFromGraph(ctx, graph, path).toCode(ctx)
+  const code = 'nodes' in graph && createIntermediaryFromGraph({ ctx, graph, path }).toCode(ctx)
   // console.info('code is ', code)
   return {
     fn: code ? eval(code) : graph.fn,
     time: performance.now() - start,
   }
-}
+} */

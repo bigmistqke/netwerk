@@ -5,36 +5,30 @@ import {
   For,
   Index,
   Match,
-  Setter,
   Show,
   Switch,
   createEffect,
-  createMemo,
   createRenderEffect,
   createSignal,
   onCleanup,
   onMount,
   splitProps,
 } from 'solid-js'
-import type { SetStoreFunction } from 'solid-js/store'
 
-import { Anchor, Edge, Graph, Handle, Html, Node } from '@lib/spagett'
-import type { Vector } from '@lib/spagett/types'
+import { Anchor, Edge, Graph, Handle, Html, Node } from '@external/spagett'
+import type { Vector } from '@external/spagett/types'
 import type {
   Atom,
   AtomNode,
   AtomNode as AtomNodeType,
-  AtomPath,
-  Ctx,
   Edge as EdgeType,
   Handle as HandleType,
   NetworkAtom,
-  Package,
   PropsNode,
-} from '../types'
+} from '@src/types'
 
-import { useRuntime } from '../App'
-import { compileGraph } from '../compilation'
+import { useCtx } from '@logic/ctx'
+import { setSelectedAtom, store } from '@logic/packages'
 import styles from './Network.module.css'
 
 const Step = (_props: { start: Vector; end: Vector } & ComponentProps<'path'>) => {
@@ -186,9 +180,10 @@ const AtomNodeContextMenu = (props: {
 
 const Renderer = (props: { value: any }) => {
   let dom: HTMLDivElement
-  const runtime = useRuntime()
+  const ctx = useCtx()
+  if (!ctx) throw `no runtime`
   onMount(() => {
-    const render = runtime.ctx.lib.std.simple_renderer.fn({ dom, ctx: runtime.ctx })
+    const render = ctx.lib.std.simple_renderer.code({ dom, ctx, props: {} })
     createEffect(() => render(props.value))
   })
   return <div ref={dom!} class={clsx(styles.rendererNode, styles.node)} />
@@ -210,11 +205,11 @@ const AtomNode = (props: {
   toggleEmit: () => void
 }) => {
   const [value, setValue] = createSignal()
-  const runtime = useRuntime()
-
+  const ctx = useCtx()
+  if (!ctx) throw `no runtime`
   createRenderEffect(() => {
     if (props.node.emits) {
-      const unsubscribe = runtime.ctx.event.addListener(props.nodeId, value => {
+      const unsubscribe = ctx.event.addListener(props.nodeId, value => {
         setValue(value)
       })
       onCleanup(unsubscribe)
@@ -222,8 +217,8 @@ const AtomNode = (props: {
   })
 
   const currentValue = () =>
-    (props.selected && runtime.result() !== undefined && runtime.result()) ||
-    (props.node.emits && value() !== undefined && value())
+    // (props.selected && ctx.result() !== undefined && ctx.result()) ||
+    props.node.emits && value() !== undefined && value()
 
   return (
     <>
@@ -300,15 +295,8 @@ const AtomNode = (props: {
  * Network mutates the nodes- and edges-store
  * */
 export default function Network(props: {
-  atomId: string
-  atom: NetworkAtom
-  setAtom: SetStoreFunction<NetworkAtom>
-  ctx: Ctx
-  setSelf: SetStoreFunction<Package>
-  path: AtomPath
+  networkAtom: NetworkAtom
   resolvedProps?: Record<string, any>
-  setResult: Setter<any>
-  setCompiledGraph: Setter<ReturnType<typeof compileGraph>>
 }) {
   const [temporaryEdges, setTemporaryEdges] = createSignal<{
     start: Vector | HandleType
@@ -317,14 +305,14 @@ export default function Network(props: {
 
   /* GRAPH MUTATIONS */
   const moveNode = (nodeId: string, position: Vector) =>
-    props.setAtom('nodes', nodeId, { position })
+    setSelectedAtom('nodes', nodeId, { position })
   const removeNode = (nodeId: string) => {
-    props.setAtom('nodes', nodeId, undefined)
+    setSelectedAtom('nodes', nodeId, undefined)
     removeEdgeFromNodeId(nodeId)
   }
-  const selectNode = (nodeId: string) => props.setAtom('selectedNodeId', nodeId)
+  const selectNode = (nodeId: string) => setSelectedAtom('selectedNodeId', nodeId)
   const toggleEmitNode = (nodeId: string) => {
-    props.setAtom('nodes', nodeId, 'emits', b => {
+    setSelectedAtom('nodes', nodeId, 'emits', b => {
       if (!b) {
         console.info(`start listening to events with:`)
         console.info(`ctx.event.addListener("${nodeId}", console.log)`)
@@ -334,16 +322,16 @@ export default function Network(props: {
   }
 
   const removeEdgeFromIndex = (index: number) =>
-    props.setAtom('edges', x => {
+    setSelectedAtom('edges', x => {
       x.splice(index, 1)
       return [...x]
     })
   const removeEdgeFromNodeId = (nodeId: string) =>
-    props.setAtom('edges', edges =>
+    setSelectedAtom('edges', edges =>
       edges.filter(edge => edge.end.nodeId !== nodeId && edge.start.nodeId !== nodeId),
     )
   const addEdge = (edge: EdgeType) => {
-    props.setAtom('edges', edges => [...edges, edge])
+    setSelectedAtom('edges', edges => [...edges, edge])
   }
 
   /* UTILITIES */
@@ -368,38 +356,6 @@ export default function Network(props: {
   const onDropHandle = (start: HandleType, end: HandleType) =>
     validateDrop(start, end) && addEdge({ start, end })
 
-  const compiledGraph = createMemo<ReturnType<typeof compileGraph>>(
-    prev => {
-      try {
-        if (!props.atom) throw `no selected atom for path: ${JSON.stringify(props.path)}`
-        const fn = compileGraph({
-          ctx: props.ctx,
-          graph: props.atom,
-          path: props.path,
-        })
-        return fn
-      } catch (error) {
-        console.error('error while compiling graph:', error)
-        return prev
-      }
-    },
-    { fn: () => {}, time: 0 },
-  )
-
-  createEffect(() => {
-    const fn = compiledGraph().fn
-    if (fn) props.setSelf(props.path.atomId, 'fn', () => fn)
-  })
-
-  createEffect(() => {
-    props.setCompiledGraph(compiledGraph())
-  })
-
-  createEffect(() => {
-    const fn = compiledGraph().fn
-    props.setResult(fn({ ctx: props.ctx, props: props.resolvedProps }))
-  })
-
   return (
     <Graph
       /* added timeout so it would reset selected texts */
@@ -408,7 +364,7 @@ export default function Network(props: {
       class={styles.graph}
     >
       <Html.Destination>
-        <For each={props.atom.edges}>
+        <For each={props.networkAtom.edges}>
           {(edge, index) => (
             <Edge start={edge.start} end={edge.end}>
               {(start, end) => (
@@ -424,9 +380,9 @@ export default function Network(props: {
         </For>
       </Html.Destination>
       <Html>
-        <For each={Object.keys(props.atom.nodes)}>
+        <For each={Object.keys(props.networkAtom.nodes)}>
           {nodeId => {
-            const node = () => props.atom.nodes[nodeId]
+            const node = () => props.networkAtom.nodes[nodeId]
             return (
               <ContextMenu.Root>
                 <ContextMenu.Trigger class="context-menu__trigger">
@@ -436,7 +392,7 @@ export default function Network(props: {
                     onMove={position => moveNode(nodeId, position)}
                     class={clsx(
                       styles.node,
-                      nodeId === props.atom.selectedNodeId && styles.selected,
+                      nodeId === props.networkAtom.selectedNodeId && styles.selected,
                       styles[node().type],
                     )}
                     tabIndex={0}
@@ -445,26 +401,26 @@ export default function Network(props: {
                     <Switch>
                       <Match when={node().type === 'atom'}>
                         <AtomNode
-                          selected={nodeId === props.atom.selectedNodeId}
+                          selected={nodeId === props.networkAtom.selectedNodeId}
                           node={node() as AtomNode}
                           nodeId={nodeId}
                           onDragHandle={onDragHandle}
                           setTemporaryEdges={setTemporaryEdges}
                           onDrop={onDropHandle}
-                          selectNode={() => props.setAtom('selectedNodeId', nodeId)}
+                          selectNode={() => setSelectedAtom('selectedNodeId', nodeId)}
                           removeNode={() => removeNode(nodeId)}
                           toggleEmit={() => toggleEmitNode(nodeId)}
                         />
                       </Match>
                       <Match when={node().type === 'props'}>
                         <PropsNode
-                          atomId={props.atomId}
-                          props={props.atom.props}
+                          atomId={store.selectedPath.atomId}
+                          props={props.networkAtom.props}
                           nodeId={nodeId}
                           onDragHandle={onDragHandle}
                           setTemporaryEdges={setTemporaryEdges}
                           onDrop={onDropHandle}
-                          setProps={_props => props.setAtom('props', _props)}
+                          setProps={_props => setSelectedAtom('props', _props)}
                           removeNode={() => removeNode(nodeId)}
                         />
                       </Match>

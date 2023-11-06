@@ -25,7 +25,9 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@lib/*": ["./src/lib/*"]
+      "@external/*": ["src/external/*"],
+      "@logic/*": ["src/logic/*"],
+      "@src/*": ["src/*"]
     }
   },
   "include": ["src"],

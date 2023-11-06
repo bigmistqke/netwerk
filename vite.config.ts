@@ -6,7 +6,9 @@ export default defineConfig({
   plugins: [solid()],
   resolve: {
     alias: {
-      '@lib': path.resolve(__dirname, './src/lib'),
+      '@external': path.resolve(__dirname, './src/external'),
+      '@logic': path.resolve(__dirname, './src/logic'),
+      '@src': path.resolve(__dirname, './src'),
     },
   },
 })
